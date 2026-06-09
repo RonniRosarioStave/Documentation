@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Move-Item -Path \"Stave_Data_Tools_Technical_Documentation.md\" -Destination \"data-tools/README.md\")",
+      "PowerShell(node --version; npm --version; \\(Get-Command npx -ErrorAction SilentlyContinue\\).Source)",
+      "PowerShell(npx -y docsify-cli serve . --port 3000)",
+      "PowerShell(\"---BRANCH---\")",
+      "PowerShell(\"---STATUS---\")",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
