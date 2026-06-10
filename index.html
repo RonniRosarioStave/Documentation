@@ -100,9 +100,46 @@
       --notice-tip-border-color: var(--stave-green);
       --notice-important-border-color: var(--stave-orange);
 
-      /* Copy-code button on-brand */
-      --cover-button-primary-background: var(--stave-navy);
+      /* ---- Cover page: dark navy hero with green accent (mirrors stavecorp.com CTA sections) ---- */
+      --cover-background-color: var(--stave-navy);
+      --cover-background-image:
+        radial-gradient(circle at 18% 22%, rgba(99, 216, 79, 0.18), transparent 42%),
+        linear-gradient(135deg, var(--stave-navy-deep) 0%, var(--stave-navy) 58%, #014b76 100%);
+      --cover-color: #dce6ec;
+      --cover-heading-color: #ffffff;
+      --cover-heading-font-weight: 800;
+      --cover-blockquote-color: #9fe890;
+      --cover-max-width: 46em;
+
+      /* Cover links */
+      --cover-link-color: #cfe8f5;
+      --cover-link-color--hover: var(--stave-green);
+
+      /* Cover buttons — secondary (outline) */
+      --cover-button-color: #ffffff;
+      --cover-button-border: 2px solid rgba(255, 255, 255, 0.55);
+      --cover-button-background--hover: rgba(255, 255, 255, 0.10);
+      --cover-button-color--hover: #ffffff;
+      --cover-button-border-radius: 6px;
+      --cover-button-transition: all 0.2s ease-in-out;
+
+      /* Cover buttons — primary (brand green) */
+      --cover-button-primary-background: var(--stave-green);
+      --cover-button-primary-background--hover: var(--stave-green-dark);
+      --cover-button-primary-color: var(--stave-navy-deep);
+      --cover-button-primary-color--hover: var(--stave-navy-deep);
+      --cover-button-primary-border: 2px solid var(--stave-green);
+      --cover-button-primary-border--hover: 2px solid var(--stave-green-dark);
     }
+
+    /* Force the brand gradient — docsify injects a random inline gradient otherwise */
+    section.cover {
+      background-color: var(--cover-background-color) !important;
+      background-image: var(--cover-background-image) !important;
+    }
+
+    /* Constrain the cover logo to a sensible width */
+    section.cover .cover-main img { width: 300px; max-width: 70vw; margin-bottom: 1.25rem; }
 
     /* App name / logo area in the sidebar header */
     .sidebar .app-name-link { color: var(--stave-navy-deep); }
@@ -122,6 +159,7 @@
       name: 'Stave Apps Documentation',
       repo: '',
       loadSidebar: true,   // use _sidebar.md
+      coverpage: true,     // use _coverpage.md as a landing hero
       subMaxLevel: 3,      // auto-nest each page's ## / ### headings under its sidebar link
       auto2top: true,
       search: { placeholder: 'Search…', noData: 'No results.', depth: 3 }
