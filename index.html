@@ -6,7 +6,114 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   <meta name="description" content="Technical documentation for Stave Apps products.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
-  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <!-- docsify-themeable base theme -->
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.css">
+
+  <!-- Stave brand fonts: self-hosted Gilroy (matches stavecorp.com) -->
+  <style>
+    @font-face { font-family: 'Gilroy'; font-weight: 400; font-style: normal; font-display: swap;
+      src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Regular.ttf') format('truetype'); }
+    @font-face { font-family: 'Gilroy'; font-weight: 500; font-style: normal; font-display: swap;
+      src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Medium.ttf') format('truetype'); }
+    @font-face { font-family: 'Gilroy'; font-weight: 700; font-style: normal; font-display: swap;
+      src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Bold.ttf') format('truetype'); }
+    @font-face { font-family: 'Gilroy'; font-weight: 800; font-style: normal; font-display: swap;
+      src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-ExtraBold.ttf') format('truetype'); }
+    @font-face { font-family: 'Gilroy'; font-weight: 900; font-style: normal; font-display: swap;
+      src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Heavy.ttf') format('truetype'); }
+  </style>
+
+  <!--
+    Stave brand palette (sourced from stavecorp.com Elementor global kit):
+      navy/teal  #00395A  (primary)        deep teal  #002131 / #042D42
+      green pin  #63D84F  (brand accent)   orange     #F5893E
+      light bg   #F7F7F7  borders #EBEBEB  body text  #54595F
+    docsify-themeable is configured below via its CSS custom properties.
+  -->
+  <style>
+    :root {
+      /* Brand palette */
+      --stave-navy:        #00395A;
+      --stave-navy-deep:   #002131;
+      --stave-green:       #63D84F;
+      --stave-green-dark:  #4cae3c;
+      --stave-orange:      #F5893E;
+      --stave-bg-light:    #F7F7F7;
+      --stave-border:      #EBEBEB;
+      --stave-text:        #344049;
+
+      /* Typography — Gilroy, matching the marketing site */
+      --base-font-family: 'Gilroy', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --base-font-weight: 400;
+      --base-line-height: 1.7;
+      --base-color: var(--stave-text);
+
+      /* Primary accent drives links, active nav, focus rings */
+      --theme-color: var(--stave-navy);
+
+      /* Headings in brand navy, Gilroy heavy weights */
+      --heading-font-family: var(--base-font-family);
+      --heading-color: var(--stave-navy-deep);
+      --heading-font-weight: 700;
+      --heading-h1-font-weight: 800;
+      --heading-h2-font-weight: 700;
+      --heading-h2-border-color: var(--stave-border);
+
+      /* Links */
+      --link-color: var(--stave-navy);
+      --link-color--hover: var(--stave-green-dark);
+      --link-text-decoration: none;
+      --link-text-decoration--hover: underline;
+
+      /* Sidebar */
+      --sidebar-width: 17rem;
+      --sidebar-background: var(--stave-bg-light);
+      --sidebar-border-width: 1px;
+      --sidebar-border-color: var(--stave-border);
+      --sidebar-name-color: var(--stave-navy-deep);
+      --sidebar-name-font-weight: 800;
+      --sidebar-nav-link-color: var(--stave-text);
+      --sidebar-nav-link-color--active: var(--stave-navy);
+      --sidebar-nav-link-font-weight--active: 700;
+      --sidebar-nav-link-border-color--active: var(--stave-green);
+      --sidebar-nav-link-border-style--active: solid;
+      --sidebar-nav-link-border-width: 0 0 0 3px;
+      --sidebar-nav-link-text-decoration--active: none;
+      --sidebar-nav-pagelink-background-image--collapse: var(--sidebar-nav-pagelink-background-image);
+
+      /* Search box */
+      --search-input-border-color: var(--stave-border);
+      --search-result-heading-color: var(--stave-navy);
+      --search-result-keyword-background: var(--stave-green);
+      --search-result-keyword-color: var(--stave-navy-deep);
+
+      /* Code blocks & inline code */
+      --code-font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      --code-theme-background: #f4f6f8;
+      --code-inline-background: #eef2f5;
+      --code-inline-color: var(--stave-navy);
+      --border-color: var(--stave-border);
+
+      /* Blockquotes / tips use the green accent bar */
+      --blockquote-border-color: var(--stave-green);
+      --blockquote-background: #f3fbf1;
+      --notice-tip-border-color: var(--stave-green);
+      --notice-important-border-color: var(--stave-orange);
+
+      /* Copy-code button on-brand */
+      --cover-button-primary-background: var(--stave-navy);
+    }
+
+    /* App name / logo area in the sidebar header */
+    .sidebar .app-name-link { color: var(--stave-navy-deep); }
+
+    /* Selection colour echoes the brand green */
+    ::selection { background: rgba(99, 216, 79, 0.30); }
+
+    /* Copy-code plugin buttons */
+    .docsify-copy-code-button { background: var(--stave-navy) !important; }
+    .docsify-copy-code-button:hover { background: var(--stave-navy-deep) !important; }
+  </style>
 </head>
 <body>
   <div id="app"></div>
@@ -26,6 +133,8 @@
   <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
   <!-- Copy buttons on code blocks -->
   <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <!-- docsify-themeable (must load after docsify core) -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-themeable@0/dist/js/docsify-themeable.min.js"></script>
   <!-- Mermaid: renders inline ```mermaid fenced blocks -->
   <script src="//cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify-mermaid@2/dist/docsify-mermaid.js"></script>
