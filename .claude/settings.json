@@ -31,8 +31,8 @@
       "PowerShell(git branch -d docs/stave-apps-hub 2>&1)",
       "PowerShell(\"--- local branches ---\")",
       "PowerShell(\"--- status ---\")",
-      "PowerShell(Resolve-DnsName -Name docs-dev.stavecorp.com -Type CNAME -Server 8.8.8.8 -ErrorAction SilentlyContinue)",
-      "PowerShell(Resolve-DnsName -Name docs-dev.stavecorp.com -Type A -Server 8.8.8.8 -ErrorAction SilentlyContinue)"
+      "PowerShell(Resolve-DnsName -Name docs-dev.stavecorp.com -Type CNAME -ErrorAction SilentlyContinue)",
+      "PowerShell(Resolve-DnsName -Name docs-dev.stavecorp.com -Server 8.8.8.8 -ErrorAction SilentlyContinue)"
     ]
   }
 }
