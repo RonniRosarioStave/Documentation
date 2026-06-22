@@ -1,10 +1,6 @@
-# Stave Apps — Product Documentation
+# Choose your documentation
 
-> Technical documentation for Stave Apps products.
-
-## Products
+> Pick the product you want to explore.
 
 - **[Stave Data Tools](data-tools/)** — ServiceNow data-hygiene toolbox: Data Masker, Data Scrambler, Data Generator, and Dictionary.
 - **[Stave QR Code Generator](qr-code/)** — Generate and render QR codes and barcodes (CODE128, UPC, CODE39, EAN, and more) tied to any ServiceNow record, filter, URL, or Service Portal page.
-
-<!-- Add new products above as their technical docs are published. -->
