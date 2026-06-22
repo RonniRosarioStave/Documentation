@@ -10,5 +10,5 @@
 - Data Masker · Scrambler · Generator · Dictionary
 - Built for ServiceNow admins and developers
 
-[Get Started](data-tools/)
+[Get Started](start/)
 [stavecorp.com](https://stavecorp.com)
