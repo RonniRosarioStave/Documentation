@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docsify",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4508"],
+      "port": 4508
+    }
+  ]
+}
