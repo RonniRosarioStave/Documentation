@@ -1,1 +1,5 @@
 .claude/settings.json
+
+# Deploy secrets — real oauth2-proxy config and env live on the server only
+deploy/oauth2-proxy.cfg
+deploy/.env

@@ -1,0 +1,37 @@
+# oauth2-proxy configuration — EXAMPLE (placeholder values).
+#
+# Copy to `oauth2-proxy.cfg` ON THE SERVER ONLY and fill in the real values.
+# The real oauth2-proxy.cfg is git-ignored — never commit secrets.
+#
+# Values come from the Entra app registration (see deploy/README.md, Part B).
+
+provider             = "oidc"
+oidc_issuer_url      = "https://login.microsoftonline.com/<TENANT_ID>/v2.0"
+client_id            = "<CLIENT_ID>"
+client_secret        = "<CLIENT_SECRET>"
+redirect_url         = "https://docs-dev.stavecorp.com/oauth2/callback"
+
+# Access rule: any @stavecorp.com account (email-domain restriction, not a group).
+email_domains        = ["stavecorp.com"]
+
+# Match the optional `email` claim added to the ID token in Entra (gotcha #1).
+# Fallback if the claim cannot be added: oidc_email_claim = "preferred_username" (UPN).
+oidc_email_claim     = "email"
+
+# Session cookie. Generate the secret with:
+#   openssl rand -base64 32 | tr '+/' '-_'
+cookie_secret        = "<COOKIE_SECRET>"
+cookie_secure        = true
+cookie_domain        = "docs-dev.stavecorp.com"
+
+# Running behind nginx as an auth_request backend (auth-only mode).
+reverse_proxy        = true
+set_xauthrequest     = true
+skip_provider_button = true                 # go straight to Microsoft, no interstitial
+upstreams            = ["static://202"]     # auth-only; nginx serves the content
+
+# Listen on all interfaces inside the container. The docker-compose port mapping
+# (127.0.0.1:4180:4180) is what restricts this to the host's loopback — Docker
+# forwards published-port traffic to the container's bridge interface, not its
+# loopback, so binding to 127.0.0.1 here would make the app unreachable.
+http_address         = "0.0.0.0:4180"
