@@ -1,7 +1,7 @@
-<!-- _sidebar.md -->
+<!-- employee/_sidebar.md — internal docs root -->
 
 
-- **Products**
+- **Internal Docs**
   - [Stave Data Tools](employee/data-tools/)
   - [Stave QR Code Generator](employee/qr-code/)
   - [Stave Maps](employee/stave-maps/)

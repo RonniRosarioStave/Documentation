@@ -1,0 +1,22 @@
+# oauth2-proxy for docs-dev.stavecorp.com employee SSO.
+#
+# The container listens on 0.0.0.0:4180 internally; the port mapping below
+# (127.0.0.1:4180:4180) is what restricts host exposure to loopback, so only
+# nginx on this host can reach it. nginx proxies /oauth2/* to it and uses
+# /oauth2/auth as an auth_request backend.
+#
+# The real oauth2-proxy.cfg lives next to this file on the server and is git-ignored.
+# Start with:  docker compose up -d
+# Logs:        docker compose logs -f oauth2-proxy
+
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    command: ["--config=/etc/oauth2-proxy.cfg"]
+    volumes:
+      - ./oauth2-proxy.cfg:/etc/oauth2-proxy.cfg:ro
+    ports:
+      # Bind to loopback so only the host's nginx can reach it.
+      - "127.0.0.1:4180:4180"

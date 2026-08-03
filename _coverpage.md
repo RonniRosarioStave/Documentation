@@ -10,6 +10,10 @@
 - Stave QR Code Generator
 - Stave Maps
 
-[Employee Access](employee/)
+<!-- Employee Access is an HTML anchor with target so docsify's SPA router does NOT
+     intercept it: it must be a top-level page load of /employee/ so nginx auth_request
+     can 302 to Microsoft login. A docsify hash route would fetch the .md via AJAX and
+     the login redirect would fail silently. -->
+<a href="/employee/" target="_self">Employee Access →</a>
 [Client Access](client/)
 [stavecorp.com](https://stavecorp.com)
