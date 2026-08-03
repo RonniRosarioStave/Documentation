@@ -67,9 +67,22 @@ top-level 302 to Microsoft login instead of a silent AJAX failure.
    (`openssl rand -base64 32 | tr '+/' '-_'`), then `docker compose up -d`.
    Verify: `docker compose logs oauth2-proxy` shows OIDC discovery success;
    `curl -I http://127.0.0.1:4180/ping` → 200.
-3. **TLS**: `certbot --nginx -d docs-dev.stavecorp.com` (HTTPS is mandatory —
-   the secure session cookie will not work over plain HTTP).
-4. **nginx**: install `nginx.conf` as a site, then `nginx -t && systemctl reload nginx`.
+   *(Gotcha: `http_address` must stay `0.0.0.0:4180` inside the container — Docker's
+   port forwarding targets the container's bridge interface, not its loopback, so
+   binding to `127.0.0.1` there makes the app unreachable even though the compose port
+   mapping already restricts host exposure to loopback.)*
+3. **TLS (webroot, keeps `nginx.conf` as source of truth)**: bootstrap a temporary
+   HTTP-only site (`listen 80`, `root` = the docs root) so certbot's webroot challenge
+   has something to serve from, then:
+   `certbot certonly --webroot -w /var/www/docs/productdocsify -d docs-dev.stavecorp.com --deploy-hook "systemctl reload nginx"`
+   (the `--deploy-hook` matters here — without it, unlike `certbot --nginx`, a renewed
+   cert won't trigger an nginx reload). The cert lands at
+   `/etc/letsencrypt/live/docs-dev.stavecorp.com/{fullchain,privkey}.pem`. Avoid
+   `certbot --nginx`: it edits the live nginx config directly and will drift from this
+   checked-in `nginx.conf`.
+4. **nginx**: install `nginx.conf` as a site — uncomment the two `ssl_certificate`
+   lines first (they're commented out in git since the cert doesn't exist until step 3)
+   — replacing the temporary bootstrap site, then `nginx -t && systemctl reload nginx`.
 
 ## Verification
 

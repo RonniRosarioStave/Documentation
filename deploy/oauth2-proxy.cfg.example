@@ -30,5 +30,8 @@ set_xauthrequest     = true
 skip_provider_button = true                 # go straight to Microsoft, no interstitial
 upstreams            = ["static://202"]     # auth-only; nginx serves the content
 
-# Listen on loopback only — nginx is the sole ingress.
-http_address         = "127.0.0.1:4180"
+# Listen on all interfaces inside the container. The docker-compose port mapping
+# (127.0.0.1:4180:4180) is what restricts this to the host's loopback — Docker
+# forwards published-port traffic to the container's bridge interface, not its
+# loopback, so binding to 127.0.0.1 here would make the app unreachable.
+http_address         = "0.0.0.0:4180"

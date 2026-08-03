@@ -1,7 +1,9 @@
 # oauth2-proxy for docs-dev.stavecorp.com employee SSO.
 #
-# Runs the OIDC client bound to 127.0.0.1:4180 (loopback only); nginx on the host
-# proxies /oauth2/* to it and uses /oauth2/auth as an auth_request backend.
+# The container listens on 0.0.0.0:4180 internally; the port mapping below
+# (127.0.0.1:4180:4180) is what restricts host exposure to loopback, so only
+# nginx on this host can reach it. nginx proxies /oauth2/* to it and uses
+# /oauth2/auth as an auth_request backend.
 #
 # The real oauth2-proxy.cfg lives next to this file on the server and is git-ignored.
 # Start with:  docker compose up -d
