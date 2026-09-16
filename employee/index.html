@@ -158,6 +158,12 @@
     window.$docsify = {
       name: 'Stave Apps — Internal Docs',
       repo: '',
+      basepath: '/employee',
+
+      alias: {
+       '/.*/_sidebar.md': '/_sidebar.md'
+      },
+
       loadSidebar: true,   // use employee/_sidebar.md (basePath = this file's dir, /employee/)
       coverpage: false,    // authenticated internal root — land straight on the docs
       subMaxLevel: 3,      // auto-nest each page's ## / ### headings under its sidebar link
