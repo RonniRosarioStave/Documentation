@@ -150,10 +150,45 @@
     /* Copy-code plugin buttons */
     .docsify-copy-code-button { background: var(--stave-navy) !important; }
     .docsify-copy-code-button:hover { background: var(--stave-navy-deep) !important; }
+
+    /* Portal indicator — subtle corner watermark, no layout impact, cue that this is the authenticated internal copy */
+    #portal-badge {
+      position: fixed;
+      top: 18px; right: -46px;
+      width: 170px;
+      z-index: 20;
+      transform: rotate(45deg);
+      text-align: center;
+      padding: 3px 0;
+      font-family: var(--base-font-family);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: rgba(220, 230, 236, 0.9);
+      background: rgba(0, 33, 49, 0.55);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
+  <div id="portal-badge" title="Employee Portal · Internal Docs">Employee &middot; Internal</div>
   <div id="app"></div>
+  <script>
+    // Best-effort: surface who's signed in as a hover tooltip, using the session
+    // oauth2-proxy already established. Never blocks rendering — silently keeps the
+    // static tooltip if this fails (e.g. local preview with no oauth2-proxy).
+    fetch('/oauth2/userinfo', { credentials: 'include' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (info) {
+        var email = info && (info.email || info.user);
+        if (email) {
+          document.getElementById('portal-badge').title =
+            'Employee Portal · Signed in as ' + email;
+        }
+      })
+      .catch(function () { /* not authenticated via oauth2-proxy locally — ignore */ });
+  </script>
   <script>
     window.$docsify = {
       name: 'Stave Apps — Internal Docs',
