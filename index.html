@@ -151,15 +151,26 @@
     .docsify-copy-code-button { background: var(--stave-navy) !important; }
     .docsify-copy-code-button:hover { background: var(--stave-navy-deep) !important; }
 
-    /* Portal indicator — subtle corner watermark, no layout impact, cue that this is the public client copy */
-    #portal-badge {
+    /* Portal indicator — subtle corner watermark, no layout impact, cue that this is the public client copy.
+       Two-layer ribbon: an outer clipping box pinned to the corner, and an oversized rotated
+       strip inside it — this keeps the whole label on-screen instead of letting the rotated
+       box poke past the viewport edge and get cut off. */
+    #portal-badge-wrap {
       position: fixed;
-      top: 18px; right: -46px;
-      width: 170px;
+      top: 0; right: 0;
+      width: 120px; height: 120px;
+      overflow: hidden;
       z-index: 20;
+      pointer-events: none;
+    }
+    #portal-badge {
+      position: absolute;
+      top: 28px; right: -58px;
+      width: 220px;
       transform: rotate(45deg);
       text-align: center;
-      padding: 3px 0;
+      white-space: nowrap;
+      padding: 4px 0;
       font-family: var(--base-font-family);
       font-size: 0.66rem;
       font-weight: 700;
@@ -167,12 +178,11 @@
       color: rgba(220, 230, 236, 0.9);
       background: rgba(0, 33, 49, 0.55);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-      pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <div id="portal-badge">Client &middot; Public</div>
+  <div id="portal-badge-wrap"><div id="portal-badge">Client &middot; Public</div></div>
   <div id="app"></div>
   <script>
     window.$docsify = {
