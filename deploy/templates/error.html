@@ -1,0 +1,195 @@
+{{define "error.html"}}
+<!--
+  Custom oauth2-proxy error page — Stave Apps Employee Documentation.
+
+  Loaded via custom_templates_dir (see deploy/oauth2-proxy.cfg.example). oauth2-proxy
+  looks up this file by the "define error.html" block name at the top of this file, NOT
+  the filename — keep that wrapper intact if this file is ever edited further. Note:
+  since Go's template lexer scans for action delimiters everywhere, including inside
+  HTML comments, this comment intentionally avoids writing them out literally.
+
+  Field reference (oauth2-proxy v7.15.3, pkg/app/pagewriter/error_page.go — do not invent
+  fields beyond this set):
+    .StatusCode   int            e.g. 403
+    .Title        string         http.StatusText(code), e.g. "Forbidden"
+    .Message      string         safe, non-debug message (see errorMessages map / call site)
+    .Redirect     string         original destination the user was headed to, if known
+                                  (empty on some error paths — always guard before using it)
+    .ProxyPrefix  string         oauth2-proxy's own route prefix, default "/oauth2"
+    .RequestID    string         correlation id for support, safe to display
+    .Footer       template.HTML  configured footer override ("-" = hide, "" = default)
+    .Version      string         oauth2-proxy version, used by the default footer only
+
+  This template never renders .AppError — that field isn't part of the struct passed to
+  the template at all (see WriteErrorPage), so there's no risk of leaking internals here.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>{{.StatusCode}} · Stave Apps Employee Docs</title>
+
+<!-- Stave brand font (self-hosted Gilroy, same source used by the docs site itself) -->
+<style>
+  @font-face { font-family: 'Gilroy'; font-weight: 400; font-style: normal; font-display: swap;
+    src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Regular.ttf') format('truetype'); }
+  @font-face { font-family: 'Gilroy'; font-weight: 700; font-style: normal; font-display: swap;
+    src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-Bold.ttf') format('truetype'); }
+  @font-face { font-family: 'Gilroy'; font-weight: 800; font-style: normal; font-display: swap;
+    src: url('https://stavecorp.com/wp-content/uploads/2025/01/Gilroy-ExtraBold.ttf') format('truetype'); }
+</style>
+
+<style>
+  :root {
+    --stave-navy: #00395A;
+    --stave-navy-deep: #002131;
+    --stave-green: #63D84F;
+    --stave-green-dark: #4cae3c;
+    --stave-bg-light: #F7F7F7;
+    --stave-border: #EBEBEB;
+    --stave-text: #344049;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    font-family: 'Gilroy', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--stave-text);
+    background: var(--stave-bg-light);
+  }
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .card {
+    width: 100%;
+    max-width: 30rem;
+    background: #ffffff;
+    border: 1px solid var(--stave-border);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 33, 49, 0.08);
+    padding: 2.5rem 2rem;
+    text-align: center;
+  }
+  .status-pill {
+    display: inline-block;
+    padding: 0.3rem 0.85rem;
+    margin-bottom: 1.25rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    background: var(--stave-navy);
+  }
+  h1 {
+    margin: 0 0 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--stave-navy-deep);
+  }
+  p.lead {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+  p.sub {
+    margin: 0.5rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #5b6b74;
+  }
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 1.75rem;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  }
+  .btn-primary {
+    background: var(--stave-green);
+    color: var(--stave-navy-deep);
+  }
+  .btn-primary:hover { background: var(--stave-green-dark); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--stave-navy);
+    border-color: var(--stave-border);
+  }
+  .btn-secondary:hover { border-color: var(--stave-navy); }
+  .request-id {
+    margin: 1.5rem 0 0;
+    font-size: 0.75rem;
+    color: #96a3aa;
+  }
+  footer {
+    padding: 1.25rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: #96a3aa;
+  }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <span class="status-pill">{{.StatusCode}} · {{.Title}}</span>
+
+    {{ if eq .StatusCode 403 }}
+    <h1>Access Denied</h1>
+    <p class="lead">This account does not have permission to access the Employee Documentation.</p>
+    <p class="sub">You signed in successfully, but the Microsoft account you chose isn't authorized for internal Stave Apps docs. Pick a different account, or head back to the public documentation.</p>
+    {{ else }}
+    <h1>{{.Title}}</h1>
+    {{ if .Message }}<p class="lead">{{.Message}}</p>{{ end }}
+    {{ end }}
+
+    <div class="actions">
+      {{ if .Redirect }}
+      <form method="GET" action="{{.ProxyPrefix}}/sign_out">
+        <input type="hidden" name="rd" value="{{.Redirect}}">
+        <button type="submit" class="btn btn-primary">Try another account</button>
+      </form>
+      {{ end }}
+      <a class="btn btn-secondary" href="/">Return to documentation</a>
+    </div>
+
+    {{ if .RequestID }}
+    <p class="request-id">Reference ID: {{.RequestID}}</p>
+    {{ end }}
+  </div>
+</main>
+
+<footer>
+  {{ if eq .Footer "-" }}
+  {{ else if eq .Footer "" }}
+  <p>Stave Apps &middot; Internal Documentation</p>
+  {{ else }}
+  <p>{{.Footer}}</p>
+  {{ end }}
+</footer>
+</body>
+</html>
+{{end}}

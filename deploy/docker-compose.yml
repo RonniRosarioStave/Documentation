@@ -17,6 +17,9 @@ services:
     command: ["--config=/etc/oauth2-proxy.cfg"]
     volumes:
       - ./oauth2-proxy.cfg:/etc/oauth2-proxy.cfg:ro
+      # Custom sign-in/error page templates (see deploy/templates/ + custom_templates_dir
+      # in oauth2-proxy.cfg). Read-only — oauth2-proxy only ever reads these at startup.
+      - ./templates:/templates:ro
     ports:
       # Bind to loopback so only the host's nginx can reach it.
       - "127.0.0.1:4180:4180"

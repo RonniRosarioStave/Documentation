@@ -18,6 +18,7 @@ Browser --443/TLS--> nginx (host) --/, /client/ public--> static files
 | `nginx.conf` | Server block: TLS, static files, `auth_request` gate on `^~ /employee/`, `/oauth2/*` proxy. |
 | `oauth2-proxy.cfg.example` | Template for the oauth2-proxy config. **Copy to `oauth2-proxy.cfg` on the server and fill in real values.** |
 | `docker-compose.yml` | Runs oauth2-proxy bound to `127.0.0.1:4180`. |
+| `templates/error.html` | Branded "Access Denied" page oauth2-proxy renders instead of its default error page (see below). |
 
 > **Secrets never live in the repo.** The real `oauth2-proxy.cfg` and any `.env` are
 > git-ignored (see the root `.gitignore`). Client secret + cookie secret exist only on
@@ -39,6 +40,29 @@ The cover page's "Employee Access" is a real `<a target="_self">` navigation to
 top-level 302 to Microsoft login instead of a silent AJAX failure.
 
 ---
+
+## Custom "Access Denied" page
+
+`templates/error.html` replaces oauth2-proxy's default error page with a branded one.
+It only fires for pages oauth2-proxy renders itself through the full reverse proxy path
+(`/oauth2/callback`, `/oauth2/sign_in`, etc.) — most importantly the 403 shown when
+Microsoft login succeeds but the chosen account isn't `@stavecorp.com`. It does **not**
+affect nginx's `auth_request /oauth2/auth` check on `^~ /employee/`: that lightweight
+endpoint returns a bare 401/403 with no body by design (nginx only reads the status code
+from it), and its 401 is what triggers the existing `error_page 401 = @sign_in` redirect
+to Microsoft.
+
+The page offers two actions:
+- **Try another account** — posts to `/oauth2/sign_out` (clears the oauth2-proxy session
+  cookie only, not the underlying Microsoft/Entra session) and returns to the page the
+  user originally requested, then falls into the existing `prompt=select_account` flow.
+- **Return to documentation** — links back to `/`, the public docs root.
+
+**Wiring (server-only step):** `custom_templates_dir = "/templates"` is documented in
+`oauth2-proxy.cfg.example`, but the real `oauth2-proxy.cfg` is git-ignored (secrets), so
+add that same line to it by hand on the server, then `docker compose up -d` to pick up
+both the new config line and the `deploy/templates/` volume mount in
+`docker-compose.yml`.
 
 ## Part B — Entra ID app registration (Entra admin)
 
@@ -91,7 +115,9 @@ top-level 302 to Microsoft login instead of a silent AJAX failure.
 | `curl -I https://docs-dev.stavecorp.com/` and `.../client/data-tools/README.md` | **200**, no redirect |
 | `curl -I https://docs-dev.stavecorp.com/employee/` and `.../employee/data-tools/README.md` | **302** → `login.microsoftonline.com` |
 | Browser: visit `/employee/` | Microsoft login → `@stavecorp.com` (+ MFA) → internal docs with sidebar + search |
-| Sign in with a non-`stavecorp.com` account | oauth2-proxy denies (403) |
+| Sign in with a non-`stavecorp.com` account | oauth2-proxy denies (403) with the branded "Access Denied" page, not the default oauth2-proxy page |
+| On the "Access Denied" page, click "Try another account" | Session cookie clears, Microsoft shows the account picker (`prompt=select_account`) again |
+| On the "Access Denied" page, click "Return to documentation" | Lands on `/` (public docs root) |
 | Public search for a string that exists only in an `employee/` page | **no result** (search indexes are isolated) |
 
 ## Rollout & rollback

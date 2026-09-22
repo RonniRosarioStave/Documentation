@@ -35,3 +35,9 @@ upstreams            = ["static://202"]     # auth-only; nginx serves the conten
 # forwards published-port traffic to the container's bridge interface, not its
 # loopback, so binding to 127.0.0.1 here would make the app unreachable.
 http_address         = "0.0.0.0:4180"
+
+# Custom error page (branded "Access Denied" screen for 403s — see deploy/templates/).
+# docker-compose.yml mounts deploy/templates/ into the container at /templates.
+# Only error.html is overridden; sign_in.html falls back to oauth2-proxy's default
+# since that file isn't present in deploy/templates/.
+custom_templates_dir = "/templates"
