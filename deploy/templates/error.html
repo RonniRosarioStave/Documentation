@@ -13,8 +13,10 @@
     .StatusCode   int            e.g. 403
     .Title        string         http.StatusText(code), e.g. "Forbidden"
     .Message      string         safe, non-debug message (see errorMessages map / call site)
-    .Redirect     string         original destination the user was headed to, if known
-                                  (empty on some error paths — always guard before using it)
+    .Redirect     string         intentionally unused below — on the OAuthCallback 403 this
+                                  is the just-consumed /oauth2/callback?code=...&state=...
+                                  URL, not the page the user originally wanted; see the
+                                  comment by "Try another account" for why
     .ProxyPrefix  string         oauth2-proxy's own route prefix, default "/oauth2"
     .RequestID    string         correlation id for support, safe to display
     .Footer       template.HTML  configured footer override ("-" = hide, "" = default)
@@ -167,9 +169,15 @@
     {{ end }}
 
     <div class="actions">
-      {{ if .Redirect }}
+      {{ if eq .StatusCode 403 }}
+      <!-- Deliberately hardcoded, not .Redirect: on the 403 raised from OAuthCallback,
+           .Redirect points at the just-used /oauth2/callback?code=...&state=... URL, not
+           the page the user originally wanted. Reusing it here would replay that stale
+           callback (missing its one-time CSRF cookie) instead of restarting login, and
+           would leak the auth code/state into this page's markup. /employee/ is this
+           deployment's only SSO-protected root, so it's always the right destination. -->
       <form method="GET" action="{{.ProxyPrefix}}/sign_out">
-        <input type="hidden" name="rd" value="{{.Redirect}}">
+        <input type="hidden" name="rd" value="/employee/">
         <button type="submit" class="btn btn-primary">Try another account</button>
       </form>
       {{ end }}
