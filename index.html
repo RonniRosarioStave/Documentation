@@ -188,6 +188,13 @@
     window.$docsify = {
       name: 'Stave Apps Documentation',
       repo: '',
+
+
+      alias: { '/client/data-tools/_sidebar.md': '/client/_sidebar.md', 
+               '/client/qr-code/_sidebar.md': '/client/_sidebar.md', 
+               '/client/stave-maps/_sidebar.md': '/client/_sidebar.md'
+      },
+
       loadSidebar: true,   // use _sidebar.md
       coverpage: true,     // use _coverpage.md as a landing hero
       onlyCover: true,     // keep the cover page standalone — no sidebar, no homepage content stacked below it
