@@ -188,9 +188,15 @@
     window.$docsify = {
       name: 'Stave Apps Documentation',
       repo: '',
+      // Default nameLink is window.location.pathname, which for this docsify instance
+      // is always '/' (docsify is hash-routed — the real browser path never changes as
+      // you navigate '/client/...'), so the sidebar title always pointed at the site
+      // root instead of the Client landing page. Point it at the Client README instead,
+      // the same #/<root>/ hash route already used by every product link below.
+      nameLink: '#/client/',
 
 
-      alias: { '/client/data-tools/_sidebar.md': '/client/_sidebar.md', 
+      alias: { '/client/data-tools/_sidebar.md': '/client/_sidebar.md',
                '/client/qr-code/_sidebar.md': '/client/_sidebar.md', 
                '/client/stave-maps/_sidebar.md': '/client/_sidebar.md'
       },
