@@ -180,6 +180,40 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
       pointer-events: auto;
     }
+
+    /* Logout control (DESIGN ONLY) — the sidebar link this styles has a harmless
+       javascript:void(0) href; see the TODO next to it in employee/_sidebar.md for
+       wiring up the real sign-out flow. Deliberately styled to read as an account/
+       session action rather than another docs link: separated from the product list
+       by a top border, muted/secondary tone, small icon — so it doesn't compete
+       visually with normal nav links. !important mirrors the .docsify-copy-code-button
+       rule above — needed because docsify-themeable's own `.sidebar-nav a` color rule
+       is more specific than a single class and would otherwise win. */
+    .sidebar-logout-link {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--stave-border);
+      color: #5b6b74 !important;
+      font-weight: 700 !important;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .sidebar-logout-link:hover,
+    .sidebar-logout-link:focus-visible {
+      color: var(--stave-orange) !important;
+    }
+    .sidebar-logout-link::before {
+      content: '';
+      flex: none;
+      width: 14px;
+      height: 14px;
+      background: no-repeat center / contain
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6b74' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/%3E%3Cpath d='M16 17l5-5-5-5'/%3E%3Cpath d='M21 12H9'/%3E%3C/svg%3E");
+    }
   </style>
 </head>
 <body>
