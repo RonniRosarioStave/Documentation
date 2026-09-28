@@ -40,35 +40,57 @@ The application is organized around **three pillars** plus one **supporting subs
 
 ---
 
-## 3. Architecture
+## 3. Usage / How-To
 
-```
-                  ┌──────────────────────────────────────────────────────┐
-                  │                  Stave Data Tools                    │
-                  └──────────────────────────────────────────────────────┘
+### 3.1 Defining a real-time mask rule (regex)
 
-  ┌─── Definition tables ───┐    ┌── Engines (Script Includes) ──┐    ┌── Outputs / Logs ──┐
+Example shipped in the app — IP-address masker on the incident table — [x_stave_dt_data_mask_definition_1fcc7a690feae640c783cd8ce1050e4a.xml](../Stave%20Doc/stave_ai_query/x_stave_dt/d0aee0190f62e640c783cd8ce1050e34/update/x_stave_dt_data_mask_definition_1fcc7a690feae640c783cd8ce1050e4a.xml):
 
-  data_mask_definition  ───────► DataMaskerHelper.maskRecord()  ─────► data_mask_alert
-                                 (or Masker.getBool())                  data_mask_replaced
-
-  data_scramble_definition ────► (UI Action "Scramble Data")  ────────► data_scramble_log
-                                  + DataScramble_Ajax.getTotalCount()    data_mask_alert
-                                                                         (when alerts=true)
-
-  data_generator ──────────────► DataToolsHelper.generateData()  ─────► target table (new rows)
-
-  dictionary_entry  ────────────► consulted by Mask Definitions
-                                  when dictionary_lookup = true
+```text
+Name:               IP Address Monitoring and Mask
+Table:              incident
+Fields:             short_description
+Mode:               Replace
+Regular Expression: \b(?:\d{1,3}\.){3}\d{1,3}\b
+Replace Text:       #Masked IP Address#
+Case sensitive:     true
+Order:              5
+Active:             false       (shipped disabled — enable per environment)
 ```
 
-**Real-time mask trigger flow:**
+When a user saves an incident with `short_description = "Down at 10.0.5.42"`, the `DataMasker Check` business rule rewrites the field to `Down at #Masked IP Address#` **before** the row is persisted, and writes an audit row to `x_stave_dt_data_mask_replaced` with `original_text = "Down at 10.0.5.42"` (because `include_original_text` defaults to `true`).
 
-1. A user saves any record on `task` (or a child class).
-2. The `DataMasker Check` business rule (before, insert/update) fires.
-3. It calls `new x_stave_dt.DataMaskerHelper().maskRecord(current)`.
-4. The helper queries `x_stave_dt_data_mask_definition` records where `active = true` and `table = current.getTableName()`, ordered by `order`.
-5. For each match, the helper either creates an alert record (`mode = Alert`) or replaces the field value in `current` (`mode = Replace`), and writes a row to `data_mask_replaced` when an actual replacement occurred.
+### 3.2 Defining a mask rule (dictionary lookup)
+
+1. Add words/phrases to `x_stave_dt_dictionary_entry` (one row per term).
+2. Create a `x_stave_dt_data_mask_definition` with:
+   - `dictionary_lookup = true`
+   - `dictionary_table = <your dictionary table>` (defaults to `x_stave_dt_dictionary_entry`)
+   - Leave `regular_expression` blank — the UI action **Generate Regular Expression** will build one from the dictionary on demand.
+
+### 3.3 Running a scramble job
+
+1. Create a `x_stave_dt_data_scramble_definition` with `table`, `fields`, `filter`, `regular_expresssion` (yes, three `s`s), and a `mode` (10/20/30/40).
+2. From the form, click **Scramble Data** (requires `x_stave_dt.scramble_user`).
+3. The UI action calls `DataScramble_Ajax.getTotalCount()` to preview the affected row count and asks for confirmation.
+4. On confirm, the scramble runs and writes one row per execution to `x_stave_dt_data_scramble_log` with `matching_records` / `modified_records`.
+5. If `alerts = true`, a `data_mask_alert` row is also produced for each scrambled value, with `data_scramble_definition` set instead of `data_mask_definition`.
+
+### 3.4 Generating synthetic records
+
+1. Create a `x_stave_dt_data_generator` with `table`, `quantity`, `fields`, and (optionally) `set_values`.
+2. `set_values` is a JSON object mapping fields to fixed values, e.g.
+
+   ```json
+   {"category": "software", "priority": "3"}
+   ```
+3. Tune distribution: `reference_setting` and `choice_setting` each take `10` (Random) or `20` (Evenly Distributed).
+4. Click **Generate Data** (requires `x_stave_dt.generator_user`).
+5. `DataToolsHelper.generateData(def)` inspects each target field via `getElement(fields[j]).getED().getInternalType()` and routes to the appropriate population strategy:
+   - `string` → from candidate list (`_setupChoices`) or random string (`_getString`)
+   - `integer` → from candidate list or random integer (`_getInt`)
+   - `reference` → `_setUpReferences` (honors `reference_setting`)
+   - `sys_user` target table → branches to `_generateUser`, which calls `api.randomuser.me`.
 
 ---
 
@@ -335,57 +357,35 @@ One `sys_data_source` record ([sys_data_source_39fd71800f1e5b4055d1cd8ce1050ec0.
 
 ---
 
-## 9. Usage / How-To
+## 9. Architecture
 
-### 9.1 Defining a real-time mask rule (regex)
+```
+                  ┌──────────────────────────────────────────────────────┐
+                  │                  Stave Data Tools                    │
+                  └──────────────────────────────────────────────────────┘
 
-Example shipped in the app — IP-address masker on the incident table — [x_stave_dt_data_mask_definition_1fcc7a690feae640c783cd8ce1050e4a.xml](../Stave%20Doc/stave_ai_query/x_stave_dt/d0aee0190f62e640c783cd8ce1050e34/update/x_stave_dt_data_mask_definition_1fcc7a690feae640c783cd8ce1050e4a.xml):
+  ┌─── Definition tables ───┐    ┌── Engines (Script Includes) ──┐    ┌── Outputs / Logs ──┐
 
-```text
-Name:               IP Address Monitoring and Mask
-Table:              incident
-Fields:             short_description
-Mode:               Replace
-Regular Expression: \b(?:\d{1,3}\.){3}\d{1,3}\b
-Replace Text:       #Masked IP Address#
-Case sensitive:     true
-Order:              5
-Active:             false       (shipped disabled — enable per environment)
+  data_mask_definition  ───────► DataMaskerHelper.maskRecord()  ─────► data_mask_alert
+                                 (or Masker.getBool())                  data_mask_replaced
+
+  data_scramble_definition ────► (UI Action "Scramble Data")  ────────► data_scramble_log
+                                  + DataScramble_Ajax.getTotalCount()    data_mask_alert
+                                                                         (when alerts=true)
+
+  data_generator ──────────────► DataToolsHelper.generateData()  ─────► target table (new rows)
+
+  dictionary_entry  ────────────► consulted by Mask Definitions
+                                  when dictionary_lookup = true
 ```
 
-When a user saves an incident with `short_description = "Down at 10.0.5.42"`, the `DataMasker Check` business rule rewrites the field to `Down at #Masked IP Address#` **before** the row is persisted, and writes an audit row to `x_stave_dt_data_mask_replaced` with `original_text = "Down at 10.0.5.42"` (because `include_original_text` defaults to `true`).
+**Real-time mask trigger flow:**
 
-### 9.2 Defining a mask rule (dictionary lookup)
-
-1. Add words/phrases to `x_stave_dt_dictionary_entry` (one row per term).
-2. Create a `x_stave_dt_data_mask_definition` with:
-   - `dictionary_lookup = true`
-   - `dictionary_table = <your dictionary table>` (defaults to `x_stave_dt_dictionary_entry`)
-   - Leave `regular_expression` blank — the UI action **Generate Regular Expression** will build one from the dictionary on demand.
-
-### 9.3 Running a scramble job
-
-1. Create a `x_stave_dt_data_scramble_definition` with `table`, `fields`, `filter`, `regular_expresssion` (yes, three `s`s), and a `mode` (10/20/30/40).
-2. From the form, click **Scramble Data** (requires `x_stave_dt.scramble_user`).
-3. The UI action calls `DataScramble_Ajax.getTotalCount()` to preview the affected row count and asks for confirmation.
-4. On confirm, the scramble runs and writes one row per execution to `x_stave_dt_data_scramble_log` with `matching_records` / `modified_records`.
-5. If `alerts = true`, a `data_mask_alert` row is also produced for each scrambled value, with `data_scramble_definition` set instead of `data_mask_definition`.
-
-### 9.4 Generating synthetic records
-
-1. Create a `x_stave_dt_data_generator` with `table`, `quantity`, `fields`, and (optionally) `set_values`.
-2. `set_values` is a JSON object mapping fields to fixed values, e.g.
-
-   ```json
-   {"category": "software", "priority": "3"}
-   ```
-3. Tune distribution: `reference_setting` and `choice_setting` each take `10` (Random) or `20` (Evenly Distributed).
-4. Click **Generate Data** (requires `x_stave_dt.generator_user`).
-5. `DataToolsHelper.generateData(def)` inspects each target field via `getElement(fields[j]).getED().getInternalType()` and routes to the appropriate population strategy:
-   - `string` → from candidate list (`_setupChoices`) or random string (`_getString`)
-   - `integer` → from candidate list or random integer (`_getInt`)
-   - `reference` → `_setUpReferences` (honors `reference_setting`)
-   - `sys_user` target table → branches to `_generateUser`, which calls `api.randomuser.me`.
+1. A user saves any record on `task` (or a child class).
+2. The `DataMasker Check` business rule (before, insert/update) fires.
+3. It calls `new x_stave_dt.DataMaskerHelper().maskRecord(current)`.
+4. The helper queries `x_stave_dt_data_mask_definition` records where `active = true` and `table = current.getTableName()`, ordered by `order`.
+5. For each match, the helper either creates an alert record (`mode = Alert`) or replaces the field value in `current` (`mode = Replace`), and writes a row to `data_mask_replaced` when an actual replacement occurred.
 
 ---
 

@@ -43,133 +43,66 @@ The app is organized around **four pillars**:
 
 ---
 
-## 3. Data Model — Table Reference
+## 3. Usage / How-To
 
-The app ships **6 tables**, all prefixed `x_stave_qr_code_`.
+### 3.1 Generate a QR for one record
 
-### 3.1 `x_stave_qr_code_stave_qr_code`
+1. Navigate to **Stave QR Code Generator → Create new QR Code**.
+2. Set:
+   - `Name` — display label.
+   - `Type` — `Record`, `Service Portal Record`, `URL`, or `text`.
+   - For `Record`: set `Table` then pick `Document`.
+   - For `Service Portal Record`: set `Table`, `Document`, plus `Portal` + `Page`.
+   - For `URL`: set `URL` and optionally `External URL = true`.
+   - For `text`: set `Text`.
+3. Pick a `Template` (or create one — see §3.4).
+4. Save. The display URL is now `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>`.
+5. Click **Test Link** to verify the target opens correctly in a new window.
 
-Per-record QR definition.
+### 3.2 Generate QR codes in bulk
 
-| Field                    | Type                                    | Mand. | Notes                                                                                                  |
-| ------------------------ | --------------------------------------- | :---: | ------------------------------------------------------------------------------------------------------ |
-| `name`                   | string (100), table_reference           |   Y   | Display name of this code.                                                                             |
-| `active`                 | boolean                                 |       | Default `true`.                                                                                        |
-| `description`            | string (1000)                           |       |                                                                                                        |
-| `type`                   | choice (40)                             |   Y   | `URL` (default), `Record`, `Service Portal Record`, `text`. Drives which other field is interpreted.   |
-| `url`                    | url (1024)                              |       | Used when `type = URL`.                                                                                |
-| `text`                   | string (384)                            |       | Used when `type = text`.                                                                               |
-| `table`                  | string (40)                             |       | Source table when `type = Record` / `Service Portal Record`.                                           |
-| `document`               | document_id (32), dependent on `table`  |       | The specific record the code points at.                                                                |
-| `view`                   | string (40)                             |       | UI view name to honor when rendering / linking.                                                        |
-| `template`               | reference → `x_stave_qr_code_qr_template` | Y   | Visual template (background, border, custom CSS, text-script).                                          |
-| `portal`                 | reference → `sp_portal`                 |   Y   | Service Portal context used when `type = Service Portal Record`.                                       |
-| `page`                   | reference → `sp_page`                   |   Y   | The Service Portal page the code links to.                                                             |
-| `catalog`                | reference → `sc_catalog`                |       | Optional catalog scoping.                                                                              |
-| `catalog_view`           | string (40)                             |       | Default `catalog_default`. View shown when the code lands on a catalog item.                           |
-| `external_url`           | boolean                                 |       | If `true`, treat `url` as a full external URL rather than an instance-relative path.                   |
-| `logo`                   | reference → `db_image`                  |       | Logo overlay.                                                                                          |
-| `not_available_message`  | string (1000)                           |       | Shown when the QR cannot be rendered (e.g. record deleted, valid_to passed).                           |
-| `valid_to`               | glide_date_time, default `2100-01-01 23:59:59` |  | Expiration cutoff.                                                                                     |
+1. Navigate to **Stave QR Code Generator → Create new QR Code Batch**.
+2. Set `Table Name`, build a `Filter`, and pick `Type` + `Template`.
+3. Click **Generate Batch Codes**. The app previews affected rows and asks for confirmation.
+4. On confirm, one `stave_qr_code` row is created per matching record, each inheriting `template`, `portal`, `page`, `valid_to`, and `not_available_message` from the batch.
 
-### 3.2 `x_stave_qr_code_stave_qr_code_batch`
+### 3.3 Print or view multiple codes
 
-Bulk QR generator.
+From a list view of QR codes or barcodes, select rows and click **View Codes** in the list actions menu. A new tab opens with a printable page rendering the selected codes.
 
-| Field                   | Type                                            | Mand. | Notes                                                                            |
-| ----------------------- | ----------------------------------------------- | :---: | -------------------------------------------------------------------------------- |
-| `number`                | string (40)                                     |       | Auto-generated.                                                                  |
-| `name`                  | string (100)                                    |   Y   |                                                                                  |
-| `active`                | boolean                                         |       | Default `true`.                                                                  |
-| `description`           | string (1000)                                   |       |                                                                                  |
-| `table_name`            | table_name (80)                                 |   Y   | Target table to walk.                                                            |
-| `filter`                | conditions (4000), dependent on `table_name`    |       | Condition builder.                                                               |
-| `type`                  | choice (40)                                     |   Y   | `Record` (default), `text`, `Service Portal Record`.                             |
-| `template`              | reference → `x_stave_qr_code_qr_template`       |   Y   |                                                                                  |
-| `portal` / `page`       | reference → `sp_portal` / `sp_page`             |       | SP context for generated children.                                               |
-| `logo`                  | reference → `db_image`                          |       |                                                                                  |
-| `view`                  | string (40)                                     |       |                                                                                  |
-| `not_available_message` | string (1000)                                   |       |                                                                                  |
-| `valid_to`              | glide_date_time, default `2100-01-01 16:59:59`  |       | Stamped onto every child row.                                                    |
+### 3.4 Define a template with dynamic content
 
-### 3.3 `x_stave_qr_code_stave_bar_code`
+1. Create an `x_stave_qr_code_qr_template` row with `Name`, optional CSS (`background`, `border`, `margin`, `padding`, `custom_style`).
+2. (Optional) Set `Is text = true` and write a `Text Script` like:
+   ```js
+   (function(current){
+     var variables = {
+       assignee: function() {
+         return current.document.assigned_to.getDisplayValue();
+       }
+     };
+     return variables;
+   })(current)
+   ```
+3. Add one or more `qr_template_content` rows (related list on the template) to compose the layout:
+   - `Type = QR Code` to inject the QR itself (`width`, `height`, `color_dark`, `color_light`, `logo_scale`).
+   - `Type = HTML` to inject arbitrary HTML supporting `field:<field_name>:field` interpolation tokens — e.g. `Owner: field:assigned_to:field` resolves to the assigned_to display value of the linked record.
+   - `Type = Formatted HTML` for WYSIWYG content.
+   - `Type = Code Name` to print the code's name as a caption.
 
-Per-record barcode definition.
+### 3.5 Embed a QR in an outbound email
 
-| Field            | Type                                    | Mand. | Notes                                                                              |
-| ---------------- | --------------------------------------- | :---: | ---------------------------------------------------------------------------------- |
-| `name`           | string (100)                            |   Y   |                                                                                    |
-| `active`         | boolean                                 |       |                                                                                    |
-| `description`    | string (1000)                           |       |                                                                                    |
-| `barcode_types`  | string (40)                             |   Y   | Symbology — see codes below. Default `1` (CODE128).                                |
-| `type`           | string (40)                             |   Y   | `1` Record (default). `2` Service Portal Record is shipped **inactive**.           |
-| `table`          | table_name (40)                         |       |                                                                                    |
-| `document`       | document_id (32), dependent on `table`  |   Y   |                                                                                    |
-| `field`          | field_name (40), dependent on `table`   |   Y   | The field on `document` whose value becomes the barcode payload.                   |
-| `template`       | reference → `x_stave_qr_code_qr_template` | Y   | Reuses the QR template table for styling wrappers.                                 |
-| `portal` / `page`| reference → `sp_portal` / `sp_page`     |       |                                                                                    |
-| `view`           | string (128)                            |       |                                                                                    |
+Use the shipped mail script in a notification template: `${mail_script:qr_code_in_email}`. It expands to an `<img>` tag pointing at the display processor URL for `current.sys_id`.
 
-**Barcode symbology codes** (`barcode_types`):
+### 3.6 Add the widget to a Service Portal page
 
-| Code | Symbology  | Code | Symbology  |
-| ---- | ---------- | ---- | ---------- |
-| `1`  | CODE128    | `5`  | MSI        |
-| `2`  | UPC        | `6`  | Pharmacode |
-| `3`  | CODE39     | `7`  | Codabar    |
-| `4`  | ITF-14     | `8`  | EAN        |
-
-### 3.4 `x_stave_qr_code_stave_barcode_batch`
-
-Bulk barcode generator.
-
-| Field        | Type                                            | Mand. | Notes                                                                            |
-| ------------ | ----------------------------------------------- | :---: | -------------------------------------------------------------------------------- |
-| `number`     | string (40)                                     |       | Auto-generated.                                                                  |
-| `name`       | string (40)                                     |   Y   |                                                                                  |
-| `description`| string (1000)                                   |       |                                                                                  |
-| `barcode`    | string (40)                                     |   Y   | Symbology (same `1`-`8` codes as §3.3). Default `1` (CODE128).                   |
-| `type`       | string (40)                                     |   Y   | `1` Record (only active option).                                                 |
-| `table_name` | table_name (80)                                 |   Y   |                                                                                  |
-| `filter`     | conditions (4000), dependent on `table_name`    |       | Condition builder.                                                               |
-| `field`      | field_name (40), dependent on `table_name`      |   Y   | Field used as barcode payload for every matching record.                         |
-| `document`   | document_id (32), dependent on `table_name`     |   Y   | (Present for legacy compatibility.)                                              |
-| `page` / `portal`| reference → `sp_page` / `sp_portal`         |       |                                                                                  |
-| `view`       | string (128)                                    |       |                                                                                  |
-
-### 3.5 `x_stave_qr_code_qr_template`
-
-Visual template applied to QR codes and barcodes.
-
-| Field          | Type                      | Mand. | Notes                                                                                                                                                |
-| -------------- | ------------------------- | :---: | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`         | string (40), display=true |   Y   |                                                                                                                                                      |
-| `background`   | string (100)              |       | CSS `background` value.                                                                                                                              |
-| `border`       | string (100)              |       | CSS `border` value.                                                                                                                                  |
-| `margin`       | string (100)              |       | CSS `margin`.                                                                                                                                        |
-| `padding`      | string (100)              |       | CSS `padding`.                                                                                                                                       |
-| `custom_style` | string (1000)             |       | Free-form additional CSS appended to the wrapper.                                                                                                    |
-| `is_text`      | boolean                   |       | If `true`, the template is used with `type = text` QR codes.                                                                                         |
-| `text`         | string (384)              |       | Static text payload.                                                                                                                                 |
-| `text_script`  | script (8000)             |       | Server-side script executed with `current` as the code record. Returns a `variables` object that `current.text` placeholders can reference.          |
-
-### 3.6 `x_stave_qr_code_qr_template_content`
-
-Layout fragments composed under a template.
-
-| Field            | Type                              | Mand. | Notes                                                                                                            |
-| ---------------- | --------------------------------- | :---: | ---------------------------------------------------------------------------------------------------------------- |
-| `qr_template`    | reference → `x_stave_qr_code_qr_template` | Y | Parent template.                                                                                                 |
-| `type`           | choice (40)                       |   Y   | QR Code, HTML, Formatted HTML, Code Name.                                                                        |
-| `order`          | integer                           |       | Composition order within the template.                                                                           |
-| `width`          | integer (default `100`)           |       | QR / image pixel width.                                                                                          |
-| `height`         | integer (default `100`)           |       | QR / image pixel height.                                                                                         |
-| `color_dark`     | string (40), default `#000000`    |       | QR foreground color.                                                                                             |
-| `color_light`    | string (40), default `white`      |       | QR background color.                                                                                             |
-| `logo_scale`     | float, default `0.2`              |       | Logo overlay size (0.1 - 0.9).                                                                                    |
-| `html`           | string (10000)                    |       | Raw HTML block. Supports `field:field_name:field` tokens that interpolate values from the linked record (e.g. `field:assigned_to:field`). |
-| `formatted_html` | html (8000)                       |       | WYSIWYG-rendered HTML block.                                                                                     |
-| `custom_style`   | string (1000)                     |       | Per-content CSS overrides.                                                                                       |
+1. In Service Portal Designer, drop the **QR Code** widget onto a page.
+2. Configure widget options:
+   - `qr_size` — pixel size of each QR (default 150).
+   - `show_text` — render the code's `name` as a caption.
+3. Pass parameters via the page URL or instance config:
+   - `qr_codes` — comma-separated `sys_id`s to render.
+   - `table` + `sys_id` — render all QR codes linked to a given record.
 
 ---
 
@@ -203,7 +136,7 @@ This is the *only* property the app defines.
 
 - `x_stave_qr_code_qr_template_content.correct_level` — QR error-correction level choices.
 - `x_stave_qr_code_qr_template_content.type` — QR Code / HTML / Formatted HTML / Code Name.
-- `x_stave_qr_code_stave_bar_code.barcode_types` — the 8 barcode symbologies listed in §3.3.
+- `x_stave_qr_code_stave_bar_code.barcode_types` — the 8 barcode symbologies listed in §6.3.
 - `x_stave_qr_code_stave_bar_code.type` — Record (1) / Service Portal Record (2, inactive).
 - `x_stave_qr_code_stave_barcode_batch.barcode` — same 8 symbologies as bar_code.
 - `x_stave_qr_code_stave_barcode_batch.type` — Record (1) only.
@@ -233,66 +166,133 @@ The application menu **Stave QR Code Generator** groups modules into:
 
 ---
 
-## 6. Usage / How-To
+## 6. Data Model — Table Reference
 
-### 6.1 Generate a QR for one record
+The app ships **6 tables**, all prefixed `x_stave_qr_code_`.
 
-1. Navigate to **Stave QR Code Generator → Create new QR Code**.
-2. Set:
-   - `Name` — display label.
-   - `Type` — `Record`, `Service Portal Record`, `URL`, or `text`.
-   - For `Record`: set `Table` then pick `Document`.
-   - For `Service Portal Record`: set `Table`, `Document`, plus `Portal` + `Page`.
-   - For `URL`: set `URL` and optionally `External URL = true`.
-   - For `text`: set `Text`.
-3. Pick a `Template` (or create one — see §6.4).
-4. Save. The display URL is now `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>`.
-5. Click **Test Link** to verify the target opens correctly in a new window.
+### 6.1 `x_stave_qr_code_stave_qr_code`
 
-### 6.2 Generate QR codes in bulk
+Per-record QR definition.
 
-1. Navigate to **Stave QR Code Generator → Create new QR Code Batch**.
-2. Set `Table Name`, build a `Filter`, and pick `Type` + `Template`.
-3. Click **Generate Batch Codes**. The app previews affected rows and asks for confirmation.
-4. On confirm, one `stave_qr_code` row is created per matching record, each inheriting `template`, `portal`, `page`, `valid_to`, and `not_available_message` from the batch.
+| Field                    | Type                                    | Mand. | Notes                                                                                                  |
+| ------------------------ | --------------------------------------- | :---: | ------------------------------------------------------------------------------------------------------ |
+| `name`                   | string (100), table_reference           |   Y   | Display name of this code.                                                                             |
+| `active`                 | boolean                                 |       | Default `true`.                                                                                        |
+| `description`            | string (1000)                           |       |                                                                                                        |
+| `type`                   | choice (40)                             |   Y   | `URL` (default), `Record`, `Service Portal Record`, `text`. Drives which other field is interpreted.   |
+| `url`                    | url (1024)                              |       | Used when `type = URL`.                                                                                |
+| `text`                   | string (384)                            |       | Used when `type = text`.                                                                               |
+| `table`                  | string (40)                             |       | Source table when `type = Record` / `Service Portal Record`.                                           |
+| `document`               | document_id (32), dependent on `table`  |       | The specific record the code points at.                                                                |
+| `view`                   | string (40)                             |       | UI view name to honor when rendering / linking.                                                        |
+| `template`               | reference → `x_stave_qr_code_qr_template` | Y   | Visual template (background, border, custom CSS, text-script).                                          |
+| `portal`                 | reference → `sp_portal`                 |   Y   | Service Portal context used when `type = Service Portal Record`.                                       |
+| `page`                   | reference → `sp_page`                   |   Y   | The Service Portal page the code links to.                                                             |
+| `catalog`                | reference → `sc_catalog`                |       | Optional catalog scoping.                                                                              |
+| `catalog_view`           | string (40)                             |       | Default `catalog_default`. View shown when the code lands on a catalog item.                           |
+| `external_url`           | boolean                                 |       | If `true`, treat `url` as a full external URL rather than an instance-relative path.                   |
+| `logo`                   | reference → `db_image`                  |       | Logo overlay.                                                                                          |
+| `not_available_message`  | string (1000)                           |       | Shown when the QR cannot be rendered (e.g. record deleted, valid_to passed).                           |
+| `valid_to`               | glide_date_time, default `2100-01-01 23:59:59` |  | Expiration cutoff.                                                                                     |
 
-### 6.3 Print or view multiple codes
+### 6.2 `x_stave_qr_code_stave_qr_code_batch`
 
-From a list view of QR codes or barcodes, select rows and click **View Codes** in the list actions menu. A new tab opens with a printable page rendering the selected codes.
+Bulk QR generator.
 
-### 6.4 Define a template with dynamic content
+| Field                   | Type                                            | Mand. | Notes                                                                            |
+| ----------------------- | ----------------------------------------------- | :---: | -------------------------------------------------------------------------------- |
+| `number`                | string (40)                                     |       | Auto-generated.                                                                  |
+| `name`                  | string (100)                                    |   Y   |                                                                                  |
+| `active`                | boolean                                         |       | Default `true`.                                                                  |
+| `description`           | string (1000)                                   |       |                                                                                  |
+| `table_name`            | table_name (80)                                 |   Y   | Target table to walk.                                                            |
+| `filter`                | conditions (4000), dependent on `table_name`    |       | Condition builder.                                                               |
+| `type`                  | choice (40)                                     |   Y   | `Record` (default), `text`, `Service Portal Record`.                             |
+| `template`              | reference → `x_stave_qr_code_qr_template`       |   Y   |                                                                                  |
+| `portal` / `page`       | reference → `sp_portal` / `sp_page`             |       | SP context for generated children.                                               |
+| `logo`                  | reference → `db_image`                          |       |                                                                                  |
+| `view`                  | string (40)                                     |       |                                                                                  |
+| `not_available_message` | string (1000)                                   |       |                                                                                  |
+| `valid_to`              | glide_date_time, default `2100-01-01 16:59:59`  |       | Stamped onto every child row.                                                    |
 
-1. Create an `x_stave_qr_code_qr_template` row with `Name`, optional CSS (`background`, `border`, `margin`, `padding`, `custom_style`).
-2. (Optional) Set `Is text = true` and write a `Text Script` like:
-   ```js
-   (function(current){
-     var variables = {
-       assignee: function() {
-         return current.document.assigned_to.getDisplayValue();
-       }
-     };
-     return variables;
-   })(current)
-   ```
-3. Add one or more `qr_template_content` rows (related list on the template) to compose the layout:
-   - `Type = QR Code` to inject the QR itself (`width`, `height`, `color_dark`, `color_light`, `logo_scale`).
-   - `Type = HTML` to inject arbitrary HTML supporting `field:<field_name>:field` interpolation tokens — e.g. `Owner: field:assigned_to:field` resolves to the assigned_to display value of the linked record.
-   - `Type = Formatted HTML` for WYSIWYG content.
-   - `Type = Code Name` to print the code's name as a caption.
+### 6.3 `x_stave_qr_code_stave_bar_code`
 
-### 6.5 Embed a QR in an outbound email
+Per-record barcode definition.
 
-Use the shipped mail script in a notification template: `${mail_script:qr_code_in_email}`. It expands to an `<img>` tag pointing at the display processor URL for `current.sys_id`.
+| Field            | Type                                    | Mand. | Notes                                                                              |
+| ---------------- | --------------------------------------- | :---: | ---------------------------------------------------------------------------------- |
+| `name`           | string (100)                            |   Y   |                                                                                    |
+| `active`         | boolean                                 |       |                                                                                    |
+| `description`    | string (1000)                           |       |                                                                                    |
+| `barcode_types`  | string (40)                             |   Y   | Symbology — see codes below. Default `1` (CODE128).                                |
+| `type`           | string (40)                             |   Y   | `1` Record (default). `2` Service Portal Record is shipped **inactive**.           |
+| `table`          | table_name (40)                         |       |                                                                                    |
+| `document`       | document_id (32), dependent on `table`  |   Y   |                                                                                    |
+| `field`          | field_name (40), dependent on `table`   |   Y   | The field on `document` whose value becomes the barcode payload.                   |
+| `template`       | reference → `x_stave_qr_code_qr_template` | Y   | Reuses the QR template table for styling wrappers.                                 |
+| `portal` / `page`| reference → `sp_portal` / `sp_page`     |       |                                                                                    |
+| `view`           | string (128)                            |       |                                                                                    |
 
-### 6.6 Add the widget to a Service Portal page
+**Barcode symbology codes** (`barcode_types`):
 
-1. In Service Portal Designer, drop the **QR Code** widget onto a page.
-2. Configure widget options:
-   - `qr_size` — pixel size of each QR (default 150).
-   - `show_text` — render the code's `name` as a caption.
-3. Pass parameters via the page URL or instance config:
-   - `qr_codes` — comma-separated `sys_id`s to render.
-   - `table` + `sys_id` — render all QR codes linked to a given record.
+| Code | Symbology  | Code | Symbology  |
+| ---- | ---------- | ---- | ---------- |
+| `1`  | CODE128    | `5`  | MSI        |
+| `2`  | UPC        | `6`  | Pharmacode |
+| `3`  | CODE39     | `7`  | Codabar    |
+| `4`  | ITF-14     | `8`  | EAN        |
+
+### 6.4 `x_stave_qr_code_stave_barcode_batch`
+
+Bulk barcode generator.
+
+| Field        | Type                                            | Mand. | Notes                                                                            |
+| ------------ | ----------------------------------------------- | :---: | -------------------------------------------------------------------------------- |
+| `number`     | string (40)                                     |       | Auto-generated.                                                                  |
+| `name`       | string (40)                                     |   Y   |                                                                                  |
+| `description`| string (1000)                                   |       |                                                                                  |
+| `barcode`    | string (40)                                     |   Y   | Symbology (same `1`-`8` codes as §6.3). Default `1` (CODE128).                   |
+| `type`       | string (40)                                     |   Y   | `1` Record (only active option).                                                 |
+| `table_name` | table_name (80)                                 |   Y   |                                                                                  |
+| `filter`     | conditions (4000), dependent on `table_name`    |       | Condition builder.                                                               |
+| `field`      | field_name (40), dependent on `table_name`      |   Y   | Field used as barcode payload for every matching record.                         |
+| `document`   | document_id (32), dependent on `table_name`     |   Y   | (Present for legacy compatibility.)                                              |
+| `page` / `portal`| reference → `sp_page` / `sp_portal`         |       |                                                                                  |
+| `view`       | string (128)                                    |       |                                                                                  |
+
+### 6.5 `x_stave_qr_code_qr_template`
+
+Visual template applied to QR codes and barcodes.
+
+| Field          | Type                      | Mand. | Notes                                                                                                                                                |
+| -------------- | ------------------------- | :---: | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`         | string (40), display=true |   Y   |                                                                                                                                                      |
+| `background`   | string (100)              |       | CSS `background` value.                                                                                                                              |
+| `border`       | string (100)              |       | CSS `border` value.                                                                                                                                  |
+| `margin`       | string (100)              |       | CSS `margin`.                                                                                                                                        |
+| `padding`      | string (100)              |       | CSS `padding`.                                                                                                                                       |
+| `custom_style` | string (1000)             |       | Free-form additional CSS appended to the wrapper.                                                                                                    |
+| `is_text`      | boolean                   |       | If `true`, the template is used with `type = text` QR codes.                                                                                         |
+| `text`         | string (384)              |       | Static text payload.                                                                                                                                 |
+| `text_script`  | script (8000)             |       | Server-side script executed with `current` as the code record. Returns a `variables` object that `current.text` placeholders can reference.          |
+
+### 6.6 `x_stave_qr_code_qr_template_content`
+
+Layout fragments composed under a template.
+
+| Field            | Type                              | Mand. | Notes                                                                                                            |
+| ---------------- | --------------------------------- | :---: | ---------------------------------------------------------------------------------------------------------------- |
+| `qr_template`    | reference → `x_stave_qr_code_qr_template` | Y | Parent template.                                                                                                 |
+| `type`           | choice (40)                       |   Y   | QR Code, HTML, Formatted HTML, Code Name.                                                                        |
+| `order`          | integer                           |       | Composition order within the template.                                                                           |
+| `width`          | integer (default `100`)           |       | QR / image pixel width.                                                                                          |
+| `height`         | integer (default `100`)           |       | QR / image pixel height.                                                                                         |
+| `color_dark`     | string (40), default `#000000`    |       | QR foreground color.                                                                                             |
+| `color_light`    | string (40), default `white`      |       | QR background color.                                                                                             |
+| `logo_scale`     | float, default `0.2`              |       | Logo overlay size (0.1 - 0.9).                                                                                    |
+| `html`           | string (10000)                    |       | Raw HTML block. Supports `field:field_name:field` tokens that interpolate values from the linked record (e.g. `field:assigned_to:field`). |
+| `formatted_html` | html (8000)                       |       | WYSIWYG-rendered HTML block.                                                                                     |
+| `custom_style`   | string (1000)                     |       | Per-content CSS overrides.                                                                                       |
 
 ---
 

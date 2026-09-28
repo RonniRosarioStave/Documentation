@@ -45,67 +45,40 @@ The application is organized around **one configuration model** (map + data laye
 
 ---
 
-## 3. Data Model — Table Reference
+## 3. Usage / How-To
 
-The app ships **2 tables**, both prefixed `x_stave_em_`.
+### 3.1 Plot a table using a location reference (e.g. Assets by location)
 
-### 3.1 `x_stave_em_maps` — "Map Definitions"
+1. Create an `x_stave_em_maps` record: set `name`, `map_provider` (Google or ArcGIS), `center_latitude`/`center_longitude`, `zoom_level`. For ArcGIS, also set `webmap_id` (mandatory).
+2. Add an `x_stave_em_map_data` layer:
+   - `table = alm_asset` (or any granted table);
+   - leave `specific_location = false`;
+   - `location = <reference field that points at cmn_location>` (mandatory in this mode);
+   - `filter = <optional condition>`;
+   - `tooltip = content = gr.getDisplayValue();` (or a richer script).
+3. Save, then click **View Map**. You're redirected to `sp_maps` (Google) or `sp_map_esri` (ArcGIS) and the records render as markers.
 
-The map configuration record.
+### 3.2 Plot a table using explicit latitude/longitude columns
 
-| Field               | Type            | Mand. | Default       | Hint / Notes                                                                                   |
-| ------------------- | --------------- | :---: | ------------- | --------------------------------------------------------------------------------------------- |
-| `name`              | string (100)    |   Y   |               | Map name.                                                                                     |
-| `description`       | string (1000)   |       |               | Free-text description.                                                                        |
-| `map_provider`      | choice (40)     |       | `0`           | `0` = ArcGIS, `1` = Google. Drives which renderer/portal is used and which fields show.        |
-| `center_latitude`   | float           |       | `36.008522`   | Initial map center latitude. Validated to [−90, 90] on submit.                                 |
-| `center_longitude`  | float           |       | `-95.221764`  | Initial map center longitude. Validated to [−180, 180] on submit.                              |
-| `zoom_level`        | integer         |       | `4`           | Starting zoom (0 = lowest).                                                                     |
-| `webmap_id`         | string (32)     |   *   |               | ArcGIS.com web map ID. **Mandatory when `map_provider = 0`**. Ignored by Google.               |
-| `show_search`       | boolean         |       |               | Show the on-screen type-ahead search. Only visible for ArcGIS.                                 |
-| `enable_clustering` | boolean         |       |               | Marker clustering toggle (Google).                                                             |
-| `opacity`           | decimal (15)    |       | `0.6`         | Heatmap opacity, 0–1. Defaults to 0.6.                                                          |
-| `max_intensity`     | integer         |       |               | Heatmap max intensity. Blank = dynamic auto-scaling by point concentration.                     |
+1. On the `x_stave_em_map_data` layer, set `specific_location = true`.
+2. The `location` field disappears; set `latitudes` and `longitude` to the two coordinate field names on the source table.
+3. Configure the icon (`icon` upload or `icon_db`), `icon_width`/`icon_height`, and tooltip as needed.
 
-### 3.2 `x_stave_em_map_data` — "Map Data"
+### 3.3 Enable heatmap / clustering (Google only)
 
-A data layer belonging to a map.
+1. On the map, set `opacity` (0–1) and optionally `max_intensity` (blank = auto-scale).
+2. On each data layer, tick `include_in_heatmap` and/or `include_in_cluster`.
+3. In the rendered Google widget, use the **Map Options** panel to toggle Markers / Heatmap / Cluster per dataset at runtime.
 
-| Field                | Type                              | Mand. | Default | Hint / Notes                                                                              |
-| -------------------- | --------------------------------- | :---: | ------- | ---------------------------------------------------------------------------------------- |
-| `name`               | string (40)                       |   Y   |         | Layer name.                                                                               |
-| `map`                | reference → `x_stave_em_maps`      |       |         | Parent map.                                                                               |
-| `table`              | table_name (80)                   |   Y   |         | Source table whose records are plotted.                                                  |
-| `filter`             | conditions (4000)                 |       |         | Condition-builder filter (dependent on `table`) scoping which records are plotted.        |
-| `specific_location`  | boolean                           |       |         | If `true`, use explicit `latitudes`/`longitude` fields; if `false`, use the `location` reference. |
-| `location`           | field_name (80)                   |   *   | `null`  | Field on `table` that holds the location reference. Mandatory unless `specific_location`. |
-| `latitudes`          | field_name (80)                   |       |         | Field on `table` holding latitude. Shown only when `specific_location = true`.            |
-| `longitude`          | field_name (80)                   |       |         | Field on `table` holding longitude. Shown only when `specific_location = true`.           |
-| `tooltip`            | script (8000)                     |       | *(see below)* | Server script producing the marker popup HTML. Vars: `content`, `gr`.                |
-| `show_icons`         | boolean                           |       | `true`  | Whether to draw marker icons for this layer.                                             |
-| `icon`               | user_image                        |       |         | Uploaded marker icon.                                                                    |
-| `icon_db`            | reference → `db_image`            |       |         | DB image marker icon (alternative to `icon`).                                            |
-| `icon_width`         | integer                           |       | `25`    | Icon width in px.                                                                        |
-| `icon_height`        | integer                           |       | `25`    | Icon height in px.                                                                       |
-| `include_in_cluster` | boolean                           |       |         | Participate in marker clustering (Google).                                               |
-| `include_in_heatmap` | boolean                           |       |         | Participate in the heatmap layer (Google).                                               |
+### 3.4 Use an existing ArcGIS.com web map
 
-**Default `tooltip` script (as shipped):**
+1. Set `map_provider = 0` (ArcGIS) on the map record.
+2. Set `webmap_id` to the ID from the ArcGIS.com item URL.
+3. Optionally tick `show_search` to enable the on-screen type-ahead search (ArcGIS only).
 
-```javascript
-/**
-* You have access to these variables: "content" and "gr".
-* content : The content of this variable will be shown in the pop-up menu if user clicks on its icon
-* gr:  GlideRecord to the table with the filter applied.
-*
-* Usage: content = gr.short_description;
-*
-* Please note: The records without location information, and locations without latitude/longitude information
-* are omitted from the glide record.
-**/
+### 3.5 Add a new source table
 
-content = gr.getDisplayValue();
-```
+Because the app enforces cross-scope table access, plotting a table outside those granted by default requires adding a new read grant for that table before it can be queried by the map engines.
 
 ---
 
@@ -168,40 +141,67 @@ The app ships marker/cluster/logo image binaries used as map icons, including a 
 
 ---
 
-## 6. Usage / How-To
+## 6. Data Model — Table Reference
 
-### 6.1 Plot a table using a location reference (e.g. Assets by location)
+The app ships **2 tables**, both prefixed `x_stave_em_`.
 
-1. Create an `x_stave_em_maps` record: set `name`, `map_provider` (Google or ArcGIS), `center_latitude`/`center_longitude`, `zoom_level`. For ArcGIS, also set `webmap_id` (mandatory).
-2. Add an `x_stave_em_map_data` layer:
-   - `table = alm_asset` (or any granted table);
-   - leave `specific_location = false`;
-   - `location = <reference field that points at cmn_location>` (mandatory in this mode);
-   - `filter = <optional condition>`;
-   - `tooltip = content = gr.getDisplayValue();` (or a richer script).
-3. Save, then click **View Map**. You're redirected to `sp_maps` (Google) or `sp_map_esri` (ArcGIS) and the records render as markers.
+### 6.1 `x_stave_em_maps` — "Map Definitions"
 
-### 6.2 Plot a table using explicit latitude/longitude columns
+The map configuration record.
 
-1. On the `x_stave_em_map_data` layer, set `specific_location = true`.
-2. The `location` field disappears; set `latitudes` and `longitude` to the two coordinate field names on the source table.
-3. Configure the icon (`icon` upload or `icon_db`), `icon_width`/`icon_height`, and tooltip as needed.
+| Field               | Type            | Mand. | Default       | Hint / Notes                                                                                   |
+| ------------------- | --------------- | :---: | ------------- | --------------------------------------------------------------------------------------------- |
+| `name`              | string (100)    |   Y   |               | Map name.                                                                                     |
+| `description`       | string (1000)   |       |               | Free-text description.                                                                        |
+| `map_provider`      | choice (40)     |       | `0`           | `0` = ArcGIS, `1` = Google. Drives which renderer/portal is used and which fields show.        |
+| `center_latitude`   | float           |       | `36.008522`   | Initial map center latitude. Validated to [−90, 90] on submit.                                 |
+| `center_longitude`  | float           |       | `-95.221764`  | Initial map center longitude. Validated to [−180, 180] on submit.                              |
+| `zoom_level`        | integer         |       | `4`           | Starting zoom (0 = lowest).                                                                     |
+| `webmap_id`         | string (32)     |   *   |               | ArcGIS.com web map ID. **Mandatory when `map_provider = 0`**. Ignored by Google.               |
+| `show_search`       | boolean         |       |               | Show the on-screen type-ahead search. Only visible for ArcGIS.                                 |
+| `enable_clustering` | boolean         |       |               | Marker clustering toggle (Google).                                                             |
+| `opacity`           | decimal (15)    |       | `0.6`         | Heatmap opacity, 0–1. Defaults to 0.6.                                                          |
+| `max_intensity`     | integer         |       |               | Heatmap max intensity. Blank = dynamic auto-scaling by point concentration.                     |
 
-### 6.3 Enable heatmap / clustering (Google only)
+### 6.2 `x_stave_em_map_data` — "Map Data"
 
-1. On the map, set `opacity` (0–1) and optionally `max_intensity` (blank = auto-scale).
-2. On each data layer, tick `include_in_heatmap` and/or `include_in_cluster`.
-3. In the rendered Google widget, use the **Map Options** panel to toggle Markers / Heatmap / Cluster per dataset at runtime.
+A data layer belonging to a map.
 
-### 6.4 Use an existing ArcGIS.com web map
+| Field                | Type                              | Mand. | Default | Hint / Notes                                                                              |
+| -------------------- | --------------------------------- | :---: | ------- | ---------------------------------------------------------------------------------------- |
+| `name`               | string (40)                       |   Y   |         | Layer name.                                                                               |
+| `map`                | reference → `x_stave_em_maps`      |       |         | Parent map.                                                                               |
+| `table`              | table_name (80)                   |   Y   |         | Source table whose records are plotted.                                                  |
+| `filter`             | conditions (4000)                 |       |         | Condition-builder filter (dependent on `table`) scoping which records are plotted.        |
+| `specific_location`  | boolean                           |       |         | If `true`, use explicit `latitudes`/`longitude` fields; if `false`, use the `location` reference. |
+| `location`           | field_name (80)                   |   *   | `null`  | Field on `table` that holds the location reference. Mandatory unless `specific_location`. |
+| `latitudes`          | field_name (80)                   |       |         | Field on `table` holding latitude. Shown only when `specific_location = true`.            |
+| `longitude`          | field_name (80)                   |       |         | Field on `table` holding longitude. Shown only when `specific_location = true`.           |
+| `tooltip`            | script (8000)                     |       | *(see below)* | Server script producing the marker popup HTML. Vars: `content`, `gr`.                |
+| `show_icons`         | boolean                           |       | `true`  | Whether to draw marker icons for this layer.                                             |
+| `icon`               | user_image                        |       |         | Uploaded marker icon.                                                                    |
+| `icon_db`            | reference → `db_image`            |       |         | DB image marker icon (alternative to `icon`).                                            |
+| `icon_width`         | integer                           |       | `25`    | Icon width in px.                                                                        |
+| `icon_height`        | integer                           |       | `25`    | Icon height in px.                                                                       |
+| `include_in_cluster` | boolean                           |       |         | Participate in marker clustering (Google).                                               |
+| `include_in_heatmap` | boolean                           |       |         | Participate in the heatmap layer (Google).                                               |
 
-1. Set `map_provider = 0` (ArcGIS) on the map record.
-2. Set `webmap_id` to the ID from the ArcGIS.com item URL.
-3. Optionally tick `show_search` to enable the on-screen type-ahead search (ArcGIS only).
+**Default `tooltip` script (as shipped):**
 
-### 6.5 Add a new source table
+```javascript
+/**
+* You have access to these variables: "content" and "gr".
+* content : The content of this variable will be shown in the pop-up menu if user clicks on its icon
+* gr:  GlideRecord to the table with the filter applied.
+*
+* Usage: content = gr.short_description;
+*
+* Please note: The records without location information, and locations without latitude/longitude information
+* are omitted from the glide record.
+**/
 
-Because the app enforces cross-scope table access, plotting a table outside those granted by default requires adding a new read grant for that table before it can be queried by the map engines.
+content = gr.getDisplayValue();
+```
 
 ---
 
@@ -210,7 +210,7 @@ Because the app enforces cross-scope table access, plotting a table outside thos
 - **Ad-hoc maps without a saved definition.** The app can build a map from parameters alone — embed the map widget on any portal page and pass table, encoded query, coordinate fields, icon, and target page to render a map of an arbitrary query.
 - **Custom marker icons.** Per layer via uploaded `icon`, a `db_image` reference (`icon_db`), and `icon_width`/`icon_height`; falls back to `stave_map_default_marker.png`.
 - **Rich tooltips.** The `tooltip` script field runs server-side with `content` and `gr` in scope — build HTML popups, links, or computed values.
-- **New source tables.** Grant read access for the table (§5.3, §6.5).
+- **New source tables.** Grant read access for the table (§5.3, §3.5).
 - **Provider swap.** A map can be flipped between Google and ArcGIS by changing `map_provider`; the View Map action routes to the matching portal automatically.
 
 ---

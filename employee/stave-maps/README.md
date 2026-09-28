@@ -45,44 +45,40 @@ The application is organized around **one configuration model** (map + data laye
 
 ---
 
-## 3. Architecture
+## 3. Usage / How-To
 
-```
-                   ┌──────────────────────────────────────────────────────────┐
-                   │                        Stave Maps                         │
-                   └──────────────────────────────────────────────────────────┘
+### 3.1 Plot a table using a location reference (e.g. Assets by location)
 
-  ── Configuration tables ──        ── Server engines (Script Includes) ──        ── Renderers ──
+1. Create an `x_stave_em_maps` record: set `name`, `map_provider` (Google or ArcGIS), `center_latitude`/`center_longitude`, `zoom_level`. For ArcGIS, also set `webmap_id` (mandatory).
+2. Add an `x_stave_em_map_data` layer:
+   - `table = alm_asset` (or any granted table);
+   - leave `specific_location = false`;
+   - `location = <reference field that points at cmn_location>` (mandatory in this mode);
+   - `filter = <optional condition>`;
+   - `tooltip = content = gr.getDisplayValue();` (or a richer script).
+3. Save, then click **View Map**. You're redirected to `sp_maps` (Google) or `sp_map_esri` (ArcGIS) and the records render as markers.
 
-  x_stave_em_maps ───────┐
-   (provider, center,    │
-    zoom, cluster,       ├──► MapDefinitionContent.getMapContent(sysId) ──► JSON ──┬──► Google widget  (s-maps-widget)
-    heatmap, webmap_id)  │        (saved-definition pipeline)                      │      Google Maps API + MarkerClusterer
-                         │                                                         │      markers + heatmap + clustering
-  x_stave_em_map_data ───┘    ServicePortalMapContent.getMapQuerybase(...) ──► JSON┤
-   (table, location,              (ad-hoc / parameter-driven pipeline)            └──► ArcGIS widget  (s-map-widget-esri)
-    filter, tooltip,                                                                     ArcGIS JS API 3.x (web map)
-    icon, cluster/heatmap)   MapFunctions._combineJSON(...)  ← shared JSON assembler      markers + info popups + search
+### 3.2 Plot a table using explicit latitude/longitude columns
 
-                              (legacy) getMapContentAjax  ──► XML ──► Show_Google_Map.do / Show_ArcGIS_Map.do
-```
+1. On the `x_stave_em_map_data` layer, set `specific_location = true`.
+2. The `location` field disappears; set `latitudes` and `longitude` to the two coordinate field names on the source table.
+3. Configure the icon (`icon` upload or `icon_db`), `icon_width`/`icon_height`, and tooltip as needed.
 
-### 3.1 The "plot a table on a map" flow (saved definition)
+### 3.3 Enable heatmap / clustering (Google only)
 
-1. An author creates an `x_stave_em_maps` record (provider, center, zoom, etc.) and one or more child `x_stave_em_map_data` layers (table, location field, filter, tooltip).
-2. A user opens the map — via the **View Map** UI action on the map record, or by navigating to the portal page directly.
-3. **View Map** (metadata/update/sys_ui_action_3d05c5820f125200c783cd8ce1050e1a.xml) saves the record and redirects by provider:
-   - `map_provider = 0` (ArcGIS) → Service Portal page **`sp_map_esri?map_id=<sys_id>`**
-   - `map_provider = 1` (Google) → Service Portal page **`sp_maps?map_id=<sys_id>`**
-4. The portal widget's **server script** calls `x_stave_em.MapDefinitionContent.getMapContent(mapSysId, scope)`.
-5. `getMapContent` loads the map, iterates each active `x_stave_em_map_data` layer, and for each layer:
-   - queries the layer's `table` with its encoded `filter`;
-   - resolves coordinates — either from explicit lat/long fields (`specific_location = true`) or by dereferencing the `location` reference field to a location record's `latitude`/`longitude`;
-   - **merges records at identical coordinates** into a single weighted point (tooltips concatenated with `<hr>`, sys_ids appended, `weight` incremented);
-   - evaluates the per-record `tooltip` script via `GlideScopedEvaluator`;
-   - resolves the marker icon (attached image → DB image → default `stave_map_default_marker.png`).
-6. `MapFunctions._combineJSON(...)` assembles `{errMsg, pointsOnMap, initialSetting, webmap, center, zoom, clusterOptions, heatmapOptions, geometry}` and returns it as JSON.
-7. The widget's **client script** draws the map with the appropriate provider SDK and wires up marker clicks, the options panel, and the "View Record" modal.
+1. On the map, set `opacity` (0–1) and optionally `max_intensity` (blank = auto-scale).
+2. On each data layer, tick `include_in_heatmap` and/or `include_in_cluster`.
+3. In the rendered Google widget, use the **Map Options** panel to toggle Markers / Heatmap / Cluster per dataset at runtime.
+
+### 3.4 Use an existing ArcGIS.com web map
+
+1. Set `map_provider = 0` (ArcGIS) on the map record.
+2. Set `webmap_id` to the ID from the ArcGIS.com item URL — e.g. for `…item.html?id=d5e02a0c1f2b4ec399823fdd3c2fdebd`, the ID is `d5e02a0c1f2b4ec399823fdd3c2fdebd`.
+3. Optionally tick `show_search` to enable the on-screen type-ahead search (ArcGIS only).
+
+### 3.5 Add a new source table
+
+Because the app enforces cross-scope table access, plotting a table outside those in §8.3 requires adding a new `sys_scope_table_access` grant (read) for that table before it can be queried by the map engines.
 
 ---
 
@@ -345,40 +341,44 @@ Both tables ship `ua_table_licensing_config` records with `license_model = none`
 
 ---
 
-## 9. Usage / How-To
+## 9. Architecture
 
-### 9.1 Plot a table using a location reference (e.g. Assets by location)
+```
+                   ┌──────────────────────────────────────────────────────────┐
+                   │                        Stave Maps                         │
+                   └──────────────────────────────────────────────────────────┘
 
-1. Create an `x_stave_em_maps` record: set `name`, `map_provider` (Google or ArcGIS), `center_latitude`/`center_longitude`, `zoom_level`. For ArcGIS, also set `webmap_id` (mandatory).
-2. Add an `x_stave_em_map_data` layer:
-   - `table = alm_asset` (or any granted table);
-   - leave `specific_location = false`;
-   - `location = <reference field that points at cmn_location>` (mandatory in this mode);
-   - `filter = <optional condition>`;
-   - `tooltip = content = gr.getDisplayValue();` (or a richer script).
-3. Save, then click **View Map**. You're redirected to `sp_maps` (Google) or `sp_map_esri` (ArcGIS) and the records render as markers.
+  ── Configuration tables ──        ── Server engines (Script Includes) ──        ── Renderers ──
 
-### 9.2 Plot a table using explicit latitude/longitude columns
+  x_stave_em_maps ───────┐
+   (provider, center,    │
+    zoom, cluster,       ├──► MapDefinitionContent.getMapContent(sysId) ──► JSON ──┬──► Google widget  (s-maps-widget)
+    heatmap, webmap_id)  │        (saved-definition pipeline)                      │      Google Maps API + MarkerClusterer
+                         │                                                         │      markers + heatmap + clustering
+  x_stave_em_map_data ───┘    ServicePortalMapContent.getMapQuerybase(...) ──► JSON┤
+   (table, location,              (ad-hoc / parameter-driven pipeline)            └──► ArcGIS widget  (s-map-widget-esri)
+    filter, tooltip,                                                                     ArcGIS JS API 3.x (web map)
+    icon, cluster/heatmap)   MapFunctions._combineJSON(...)  ← shared JSON assembler      markers + info popups + search
 
-1. On the `x_stave_em_map_data` layer, set `specific_location = true`.
-2. The `location` field disappears; set `latitudes` and `longitude` to the two coordinate field names on the source table.
-3. Configure the icon (`icon` upload or `icon_db`), `icon_width`/`icon_height`, and tooltip as needed.
+                              (legacy) getMapContentAjax  ──► XML ──► Show_Google_Map.do / Show_ArcGIS_Map.do
+```
 
-### 9.3 Enable heatmap / clustering (Google only)
+### 9.1 The "plot a table on a map" flow (saved definition)
 
-1. On the map, set `opacity` (0–1) and optionally `max_intensity` (blank = auto-scale).
-2. On each data layer, tick `include_in_heatmap` and/or `include_in_cluster`.
-3. In the rendered Google widget, use the **Map Options** panel to toggle Markers / Heatmap / Cluster per dataset at runtime.
-
-### 9.4 Use an existing ArcGIS.com web map
-
-1. Set `map_provider = 0` (ArcGIS) on the map record.
-2. Set `webmap_id` to the ID from the ArcGIS.com item URL — e.g. for `…item.html?id=d5e02a0c1f2b4ec399823fdd3c2fdebd`, the ID is `d5e02a0c1f2b4ec399823fdd3c2fdebd`.
-3. Optionally tick `show_search` to enable the on-screen type-ahead search (ArcGIS only).
-
-### 9.5 Add a new source table
-
-Because the app enforces cross-scope table access, plotting a table outside those in §8.3 requires adding a new `sys_scope_table_access` grant (read) for that table before it can be queried by the map engines.
+1. An author creates an `x_stave_em_maps` record (provider, center, zoom, etc.) and one or more child `x_stave_em_map_data` layers (table, location field, filter, tooltip).
+2. A user opens the map — via the **View Map** UI action on the map record, or by navigating to the portal page directly.
+3. **View Map** (metadata/update/sys_ui_action_3d05c5820f125200c783cd8ce1050e1a.xml) saves the record and redirects by provider:
+   - `map_provider = 0` (ArcGIS) → Service Portal page **`sp_map_esri?map_id=<sys_id>`**
+   - `map_provider = 1` (Google) → Service Portal page **`sp_maps?map_id=<sys_id>`**
+4. The portal widget's **server script** calls `x_stave_em.MapDefinitionContent.getMapContent(mapSysId, scope)`.
+5. `getMapContent` loads the map, iterates each active `x_stave_em_map_data` layer, and for each layer:
+   - queries the layer's `table` with its encoded `filter`;
+   - resolves coordinates — either from explicit lat/long fields (`specific_location = true`) or by dereferencing the `location` reference field to a location record's `latitude`/`longitude`;
+   - **merges records at identical coordinates** into a single weighted point (tooltips concatenated with `<hr>`, sys_ids appended, `weight` incremented);
+   - evaluates the per-record `tooltip` script via `GlideScopedEvaluator`;
+   - resolves the marker icon (attached image → DB image → default `stave_map_default_marker.png`).
+6. `MapFunctions._combineJSON(...)` assembles `{errMsg, pointsOnMap, initialSetting, webmap, center, zoom, clusterOptions, heatmapOptions, geometry}` and returns it as JSON.
+7. The widget's **client script** draws the map with the appropriate provider SDK and wires up marker clicks, the options panel, and the "View Record" modal.
 
 ---
 
@@ -387,7 +387,7 @@ Because the app enforces cross-scope table access, plotting a table outside thos
 - **Ad-hoc maps without a saved definition.** `x_stave_em.ServicePortalMapContent.getMapQuerybase(...)` builds a map from parameters alone — embed the `s-maps-widget` / `s-map-widget-esri` widget on any portal page and pass `map_table`, `map_query`, coordinate fields, icon, and `target_page` to render a map of an arbitrary query.
 - **Custom marker icons.** Per layer via uploaded `icon`, a `db_image` reference (`icon_db`), and `icon_width`/`icon_height`; falls back to `stave_map_default_marker.png`.
 - **Rich tooltips.** The `tooltip` script field runs server-side with `content` and `gr` in scope — build HTML popups, links, or computed values. (Editing it requires the `x_stave_em.script` role.)
-- **New source tables.** Grant read access via `sys_scope_table_access` (§8.3, §9.5).
+- **New source tables.** Grant read access via `sys_scope_table_access` (§8.3, §3.5).
 - **Provider swap.** A map can be flipped between Google and ArcGIS by changing `map_provider`; the View Map action routes to the matching portal automatically.
 
 ---

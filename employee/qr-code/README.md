@@ -39,37 +39,66 @@ The app is organized around **four pillars**:
 
 ---
 
-## 3. Architecture
+## 3. Usage / How-To
 
-```
-                ┌──────────────────────────────────────────────────────────────┐
-                │                Stave QR Code Generator                      │
-                └──────────────────────────────────────────────────────────────┘
+### 3.1 Generate a QR for one record
 
-  ┌──────── Definition tables ────────┐    ┌── Server engines ──┐   ┌─── Renderers / Outputs ───┐
+1. Navigate to **Stave QR Code Generator → Create new QR Code**.
+2. Set:
+   - `Name` — display label.
+   - `Type` — `Record` (link to a ServiceNow record), `Service Portal Record` (link to a portal page rendering the record), `URL` (free URL), or `text`.
+   - For `Record`: set `Table` then pick `Document`.
+   - For `Service Portal Record`: set `Table`, `Document`, plus `Portal` + `Page`.
+   - For `URL`: set `URL` and optionally `External URL = true`.
+   - For `text`: set `Text`.
+3. Pick a `Template` (or create one — see §3.4).
+4. Save. The display URL is now `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>`.
+5. Click **Test Link** to verify the target opens correctly in a new window.
 
-  stave_qr_code       ─────────────────►   QRCodeHelper          ──► x_stave_qr_code_stave_qr_display.do
-  stave_qr_code_batch ──► Generate ───►   QRCodeHelperAjax        │   (processor URL — server-rendered HTML/QR)
-                          Batch Codes  ──► BatchGenerationAjax ──►
-                          UI action                                ── SP widget "QR Code"
-  stave_bar_code      ─────────────────►   BarcodeHelper         ──► x_stave_qr_code_stave_barcode_display.do
-  stave_barcode_batch ──► Generate ───►   BatchGenerationAjax   ──►  (processor URL with JsBarcode rendering)
-                          Batch Codes
-                          UI action
+### 3.2 Generate QR codes in bulk
 
-  qr_template         ──► template style + custom_style + text_script (sandbox-evaluated)
-  qr_template_content ──► HTML/CSS blocks per "type" (QR Code, HTML, Formatted HTML, Code Name)
-                          with field:fieldname:field interpolation tokens
-```
+1. Navigate to **Stave QR Code Generator → Create new QR Code Batch**.
+2. Set `Table Name`, build a `Filter` (condition builder), and pick `Type` + `Template`.
+3. Click **Generate Batch Codes**. The client UI action calls `BatchGenerationAjax.getTotalCount()` to preview affected rows and asks for confirmation.
+4. On confirm, one `stave_qr_code` row is created per matching record, each inheriting `template`, `portal`, `page`, `valid_to`, and `not_available_message` from the batch.
 
-**Per-record QR flow:**
-1. Create a `stave_qr_code` record pointing at a table + `document` (or a URL / free text), pick a `template`, pick a Service Portal `portal` + `page`.
-2. The display processor URL `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>` renders the QR (combining `QRCodeHelper` server-side templating with `AwesomeQR` / `qrcode.js` client-side drawing inside the SP widget).
-3. Embed in emails via the shipped mail script `qr_code_in_email`, or list-print via the **View Codes** UI action.
+### 3.3 Print or view multiple codes
 
-**Batch flow:**
-1. Create a `stave_qr_code_batch` or `stave_barcode_batch` definition with `table_name` + condition-builder `filter` + `template`.
-2. Click **Generate Batch Codes** on the form. The client-side `showBatchGenerationConfirm()` calls `BatchGenerationAjax.getTotalCount()` to preview the affected row count, then on confirm spawns one definition row per matching record.
+From a list view of QR codes or barcodes, select rows and click **View Codes** in the list actions menu. A new tab opens with `?sysparm_print=true` and renders the selected codes for printing (grid or list toggle in the widget; `window.print()` button on the page).
+
+### 3.4 Define a template with dynamic content
+
+1. Create an `x_stave_qr_code_qr_template` row with `Name`, optional CSS (`background`, `border`, `margin`, `padding`, `custom_style`).
+2. (Optional) Set `Is text = true` and write a `Text Script` like:
+   ```js
+   (function(current){
+     var variables = {
+       assignee: function() {
+         return current.document.assigned_to.getDisplayValue();
+       }
+     };
+     return variables;
+   })(current)
+   ```
+3. Add one or more `qr_template_content` rows (related list on the template) to compose the layout:
+   - `Type = QR Code` to inject the QR itself (`width`, `height`, `color_dark`, `color_light`, `logo_scale`).
+   - `Type = HTML` to inject arbitrary HTML supporting `field:<field_name>:field` interpolation tokens — e.g. `Owner: field:assigned_to:field` resolves to the assigned_to display value of the linked record.
+   - `Type = Formatted HTML` for WYSIWYG content.
+   - `Type = Code Name` to print the code's name as a caption.
+
+### 3.5 Embed a QR in an outbound email
+
+Use the shipped mail script in a notification template: `${mail_script:qr_code_in_email}`. It expands to an `<img>` tag pointing at the display processor URL for `current.sys_id`. The receiving mail client just renders an inline image.
+
+### 3.6 Add the widget to a Service Portal page
+
+1. In Service Portal Designer, drop the **QR Code** widget onto a page.
+2. Configure widget options:
+   - `qr_size` — pixel size of each QR (default 150).
+   - `show_text` — render the code's `name` as a caption.
+3. Pass parameters via the page URL or instance config:
+   - `qr_codes` — comma-separated `sys_id`s to render.
+   - `table` + `sys_id` — render all QR codes linked to a given record.
 
 ---
 
@@ -376,66 +405,37 @@ The display URLs `x_stave_qr_code_stave_qr_display.do` and `x_stave_qr_code_stav
 
 ---
 
-## 10. Usage / How-To
+## 10. Architecture
 
-### 10.1 Generate a QR for one record
+```
+                ┌──────────────────────────────────────────────────────────────┐
+                │                Stave QR Code Generator                      │
+                └──────────────────────────────────────────────────────────────┘
 
-1. Navigate to **Stave QR Code Generator → Create new QR Code**.
-2. Set:
-   - `Name` — display label.
-   - `Type` — `Record` (link to a ServiceNow record), `Service Portal Record` (link to a portal page rendering the record), `URL` (free URL), or `text`.
-   - For `Record`: set `Table` then pick `Document`.
-   - For `Service Portal Record`: set `Table`, `Document`, plus `Portal` + `Page`.
-   - For `URL`: set `URL` and optionally `External URL = true`.
-   - For `text`: set `Text`.
-3. Pick a `Template` (or create one — see §10.4).
-4. Save. The display URL is now `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>`.
-5. Click **Test Link** to verify the target opens correctly in a new window.
+  ┌──────── Definition tables ────────┐    ┌── Server engines ──┐   ┌─── Renderers / Outputs ───┐
 
-### 10.2 Generate QR codes in bulk
+  stave_qr_code       ─────────────────►   QRCodeHelper          ──► x_stave_qr_code_stave_qr_display.do
+  stave_qr_code_batch ──► Generate ───►   QRCodeHelperAjax        │   (processor URL — server-rendered HTML/QR)
+                          Batch Codes  ──► BatchGenerationAjax ──►
+                          UI action                                ── SP widget "QR Code"
+  stave_bar_code      ─────────────────►   BarcodeHelper         ──► x_stave_qr_code_stave_barcode_display.do
+  stave_barcode_batch ──► Generate ───►   BatchGenerationAjax   ──►  (processor URL with JsBarcode rendering)
+                          Batch Codes
+                          UI action
 
-1. Navigate to **Stave QR Code Generator → Create new QR Code Batch**.
-2. Set `Table Name`, build a `Filter` (condition builder), and pick `Type` + `Template`.
-3. Click **Generate Batch Codes**. The client UI action calls `BatchGenerationAjax.getTotalCount()` to preview affected rows and asks for confirmation.
-4. On confirm, one `stave_qr_code` row is created per matching record, each inheriting `template`, `portal`, `page`, `valid_to`, and `not_available_message` from the batch.
+  qr_template         ──► template style + custom_style + text_script (sandbox-evaluated)
+  qr_template_content ──► HTML/CSS blocks per "type" (QR Code, HTML, Formatted HTML, Code Name)
+                          with field:fieldname:field interpolation tokens
+```
 
-### 10.3 Print or view multiple codes
+**Per-record QR flow:**
+1. Create a `stave_qr_code` record pointing at a table + `document` (or a URL / free text), pick a `template`, pick a Service Portal `portal` + `page`.
+2. The display processor URL `x_stave_qr_code_stave_qr_display.do?sysparm_code_id=<sys_id>` renders the QR (combining `QRCodeHelper` server-side templating with `AwesomeQR` / `qrcode.js` client-side drawing inside the SP widget).
+3. Embed in emails via the shipped mail script `qr_code_in_email`, or list-print via the **View Codes** UI action.
 
-From a list view of QR codes or barcodes, select rows and click **View Codes** in the list actions menu. A new tab opens with `?sysparm_print=true` and renders the selected codes for printing (grid or list toggle in the widget; `window.print()` button on the page).
-
-### 10.4 Define a template with dynamic content
-
-1. Create an `x_stave_qr_code_qr_template` row with `Name`, optional CSS (`background`, `border`, `margin`, `padding`, `custom_style`).
-2. (Optional) Set `Is text = true` and write a `Text Script` like:
-   ```js
-   (function(current){
-     var variables = {
-       assignee: function() {
-         return current.document.assigned_to.getDisplayValue();
-       }
-     };
-     return variables;
-   })(current)
-   ```
-3. Add one or more `qr_template_content` rows (related list on the template) to compose the layout:
-   - `Type = QR Code` to inject the QR itself (`width`, `height`, `color_dark`, `color_light`, `logo_scale`).
-   - `Type = HTML` to inject arbitrary HTML supporting `field:<field_name>:field` interpolation tokens — e.g. `Owner: field:assigned_to:field` resolves to the assigned_to display value of the linked record.
-   - `Type = Formatted HTML` for WYSIWYG content.
-   - `Type = Code Name` to print the code's name as a caption.
-
-### 10.5 Embed a QR in an outbound email
-
-Use the shipped mail script in a notification template: `${mail_script:qr_code_in_email}`. It expands to an `<img>` tag pointing at the display processor URL for `current.sys_id`. The receiving mail client just renders an inline image.
-
-### 10.6 Add the widget to a Service Portal page
-
-1. In Service Portal Designer, drop the **QR Code** widget onto a page.
-2. Configure widget options:
-   - `qr_size` — pixel size of each QR (default 150).
-   - `show_text` — render the code's `name` as a caption.
-3. Pass parameters via the page URL or instance config:
-   - `qr_codes` — comma-separated `sys_id`s to render.
-   - `table` + `sys_id` — render all QR codes linked to a given record.
+**Batch flow:**
+1. Create a `stave_qr_code_batch` or `stave_barcode_batch` definition with `table_name` + condition-builder `filter` + `template`.
+2. Click **Generate Batch Codes** on the form. The client-side `showBatchGenerationConfirm()` calls `BatchGenerationAjax.getTotalCount()` to preview the affected row count, then on confirm spawns one definition row per matching record.
 
 ---
 

@@ -41,133 +41,52 @@ The application is organized around **three pillars** plus one **supporting subs
 
 ---
 
-## 3. Data Model — Table Reference
+## 3. Usage / How-To
 
-The app ships **7 tables**, all prefixed `x_stave_dt_`.
+### 3.1 Defining a real-time mask rule (regex)
 
-### 3.1 `x_stave_dt_data_mask_definition`
+Example — IP-address masker on the incident table:
 
-Defines a real-time masking rule.
+```text
+Name:               IP Address Monitoring and Mask
+Table:              incident
+Fields:             short_description
+Mode:               Replace
+Regular Expression: \b(?:\d{1,3}\.){3}\d{1,3}\b
+Replace Text:       #Masked IP Address#
+Case sensitive:     true
+Order:              5
+Active:             false       (enable per environment)
+```
 
-| Field                     | Type            | Mand. | Hint / Notes                                                                                                |
-| ------------------------- | --------------- | :---: | ----------------------------------------------------------------------------------------------------------- |
-| `name`                    | string (100)    |   Y   | Name of this data mask definition.                                                                          |
-| `description`             | string (1000)   |       | The description of the data mask definition.                                                                |
-| `active`                  | boolean         |       | Default `true`. Toggles the rule on/off.                                                                    |
-| `mode`                    | string (40)     |   Y   | `Alert` (log only) or `Replace` (overwrite with `replace_text`). Default `Alert`.                          |
-| `table`                   | table_name (80) |   Y   | Table that will be monitored by this rule.                                                                  |
-| `fields`                  | string (1000)   |   Y   | Comma-separated list of fields on `table` to evaluate.                                                      |
-| `filter`                  | conditions (4000) |     | Condition-builder filter scoping which records trigger the rule.                                            |
-| `case_sensitive_filter`   | boolean         |       | Apply `filter` case-sensitively.                                                                            |
-| `regular_expression`      | string (100000) |   Y   | The regex pattern matched against the specified fields.                                                     |
-| `conditions_regex`        | string (2560)   |       | Additional regex applied to conditions.                                                                     |
-| `case_sensitive`          | boolean         |       | Default `true`. Apply `regular_expression` case-sensitively.                                                |
-| `dictionary_lookup`       | boolean         |       | If `true`, match against dictionary entries (table = `dictionary_table`) instead of regex.                  |
-| `dictionary_table`        | table_name (80) |       | The table that holds the dictionary entries for lookup.                                                     |
-| `replace_text`            | string (1000)   |       | Text inserted in place of the matched pattern when `mode = Replace`.                                        |
-| `first`                   | boolean         |       | Replace **only the first** match in the field.                                                              |
-| `last`                    | boolean         |       | Replace **only the last** match in the field.                                                               |
-| `exclude_characters`      | integer         |       | Number of characters to skip when masking (e.g. last 4 of an SSN).                                          |
-| `include_original_text`   | boolean         |       | Default `true`. If true, original value is stored on the `data_mask_replaced` audit row.                    |
-| `order`                   | integer         |       | Execution priority when multiple definitions monitor the same table (lower runs first).                     |
+When a user saves an incident with `short_description = "Down at 10.0.5.42"`, the field is rewritten to `Down at #Masked IP Address#` **before** the row is persisted, and an audit row is written to `x_stave_dt_data_mask_replaced` with `original_text = "Down at 10.0.5.42"` (because `include_original_text` defaults to `true`).
 
-### 3.2 `x_stave_dt_data_mask_alert`
+### 3.2 Defining a mask rule (dictionary lookup)
 
-Audit row written whenever a `mode=Alert` mask rule fires (and optionally when scramble rules with `alerts=true` fire).
+1. Add words/phrases to `x_stave_dt_dictionary_entry` (one row per term).
+2. Create a `x_stave_dt_data_mask_definition` with:
+   - `dictionary_lookup = true`
+   - `dictionary_table = <your dictionary table>` (defaults to `x_stave_dt_dictionary_entry`)
+   - Leave `regular_expression` blank — the **Generate Regular Expression** action will build one from the dictionary on demand.
 
-| Field                       | Type                                      | Read-only | Notes                                                                  |
-| --------------------------- | ----------------------------------------- | :-------: | ---------------------------------------------------------------------- |
-| `number`                    | string (40)                               |           | Auto-generated.                                                        |
-| `user`                      | reference → `sys_user`                    |   Yes     | User whose save triggered the alert.                                   |
-| `table`                     | string (40)                               |   Yes     | Source table where the match occurred.                                 |
-| `field`                     | string (40)                               |   Yes     | Field on `table` where the match occurred.                             |
-| `id`                        | string (40)                               |   Yes     | `sys_id` of the source record.                                         |
-| `matched_text`              | string (1000)                             |   Yes     | The substring that matched the pattern.                                |
-| `data_mask_definition`      | reference → `x_stave_dt_data_mask_definition` | Yes   | Definition that fired (null if scramble-sourced).                      |
-| `data_scramble_definition`  | reference → `x_stave_dt_data_scramble_definition` | Yes | Definition that fired (null if mask-sourced).                          |
-| `state`                     | string (40)                               |           | `Pending Review` (default), `Masked`, or `Ignored`.                    |
+### 3.3 Running a scramble job
 
-### 3.3 `x_stave_dt_data_mask_replaced`
+1. Create a `x_stave_dt_data_scramble_definition` with `table`, `fields`, `filter`, `regular_expresssion`, and a `mode` (10/20/30/40).
+2. From the form, click **Scramble Data** (requires the Scramble user role).
+3. The app previews the affected row count and asks for confirmation.
+4. On confirm, the scramble runs and writes one row per execution to `x_stave_dt_data_scramble_log` with `matching_records` / `modified_records`.
+5. If `alerts = true`, a `data_mask_alert` row is also produced for each scrambled value.
 
-Audit row written whenever a `mode=Replace` rule actually overwrites a value.
+### 3.4 Generating synthetic records
 
-| Field                  | Type                                                | Notes                                                                            |
-| ---------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `number`               | string (40)                                         | Auto-generated.                                                                  |
-| `user`                 | reference → `sys_user`                              | User whose save triggered the replacement.                                       |
-| `data_mask_definition` | reference → `x_stave_dt_data_mask_definition`       | Read-only. Rule that fired.                                                      |
-| `table`                | table_name (80)                                     | Read-only. Source table.                                                         |
-| `field`                | string (40)                                         | Field that was overwritten.                                                      |
-| `id`                   | string (40)                                         | `sys_id` of the source record.                                                   |
-| `mode`                 | string (40)                                         | The `mode` of the firing definition (typically `Replace`).                       |
-| `original_text`        | string (100)                                        | Default `Not logged`. Populated only when the definition has `include_original_text = true`. |
+1. Create a `x_stave_dt_data_generator` with `table`, `quantity`, `fields`, and (optionally) `set_values`.
+2. `set_values` is a JSON object mapping fields to fixed values, e.g.
 
-### 3.4 `x_stave_dt_data_scramble_definition`
-
-Defines a manually-executed bulk scramble.
-
-| Field                  | Type                | Mand. | Notes                                                                                                          |
-| ---------------------- | ------------------- | :---: | -------------------------------------------------------------------------------------------------------------- |
-| `number`               | string (40)         |       | Auto-generated.                                                                                                |
-| `description`          | string (100)        |       | Description of this scramble definition.                                                                       |
-| `table`                | table_name (80)     |   Y   | Table whose data will be scrambled.                                                                            |
-| `fields`               | string (40000)      |       | Comma-separated list of fields on `table` to scramble.                                                         |
-| `filter`               | conditions (4000)   |       | Condition-builder filter.                                                                                      |
-| `regular_expresssion`  | string (100000)     |       | Regex matching the substring within each field to scramble.                                                    |
-| `case_sensitive`       | boolean             |       | Default `true`.                                                                                                |
-| `mode`                 | choice (40)         |       | Scramble mode — see codes below. Default `10` (Xs).                                                            |
-| `alerts`               | boolean             |       | If `true`, also write a `data_mask_alert` row for each scrambled value.                                        |
-
-**Scramble mode codes** (stored as the integer string in the `mode` field):
-
-| Code | Label       | Behavior                                                              |
-| ---- | ----------- | --------------------------------------------------------------------- |
-| `10` | Xs          | Replace every matched character with `x`.                             |
-| `20` | Shuffle     | Re-order the characters of the match randomly.                        |
-| `30` | Random User | Replace with user data drawn from `api.randomuser.me`.                |
-| `40` | Nowlpsum    | Replace with lorem ipsum text.                                        |
-
-### 3.5 `x_stave_dt_data_scramble_log`
-
-Execution log for scramble runs.
-
-| Field                 | Type                                                   | Notes                                                                                |
-| --------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `number`              | string (40)                                            | Auto-generated.                                                                      |
-| `scramble_definition` | reference → `x_stave_dt_data_scramble_definition`      | Definition that ran.                                                                 |
-| `description`         | string (100)                                           | Free-text description.                                                               |
-| `record_table`        | table_name (40)                                        | The table that was scrambled.                                                        |
-| `record`              | document_id (32)                                       | Reference to a specific scrambled record.                                            |
-| `start_date`          | glide_date_time                                        | Run start.                                                                           |
-| `end_date`            | glide_date_time                                        | Run end.                                                                             |
-| `matching_records`    | integer                                                | Records that matched the definition's filter + regex.                                |
-| `modified_records`    | integer                                                | Records actually written.                                                            |
-
-### 3.6 `x_stave_dt_data_generator`
-
-Synthetic data generation definition.
-
-| Field               | Type            | Mand. | Notes                                                                                       |
-| ------------------- | --------------- | :---: | ------------------------------------------------------------------------------------------- |
-| `number`            | string (40)     |       | Auto-generated.                                                                             |
-| `description`       | string (40)     |       | Description of this generator.                                                              |
-| `table`             | table_name (80) |   Y   | Table that will receive generated rows.                                                     |
-| `quantity`          | integer         |   Y   | How many records to create per execution.                                                   |
-| `fields`            | string (1000)   |   Y   | Comma-separated list of fields on `table` to populate.                                      |
-| `reference_setting` | choice (40)     |       | `10` Random (default) / `20` Evenly Distributed — controls how reference field values are picked. |
-| `choice_setting`    | choice (40)     |       | `10` Random (default) / `20` Evenly Distributed — same, for choice fields.                  |
-| `set_values`        | string (4000)   |       | JSON map of `field → fixed_value`. Each key must appear in `fields`.                        |
-
-### 3.7 `x_stave_dt_dictionary_entry`
-
-Custom word/phrase list used by mask definitions when `dictionary_lookup = true`.
-
-| Field            | Type             | Notes                                                       |
-| ---------------- | ---------------- | ----------------------------------------------------------- |
-| `name`           | string (40)      | Unique. The word/phrase to match.                           |
-| `sys_class_name` | sys_class_name (80) | Supports table extension.                                |
-
-An import template is provided for bulk-loading dictionary entries.
+   ```json
+   {"category": "software", "priority": "3"}
+   ```
+3. Tune distribution: `reference_setting` and `choice_setting` each take `10` (Random) or `20` (Evenly Distributed).
+4. Click **Generate Data** (requires the Generator user role).
 
 ---
 
@@ -199,52 +118,133 @@ The application menu **Stave Data Tools** groups modules into:
 
 ---
 
-## 5. Usage / How-To
+## 5. Data Model — Table Reference
 
-### 5.1 Defining a real-time mask rule (regex)
+The app ships **7 tables**, all prefixed `x_stave_dt_`.
 
-Example — IP-address masker on the incident table:
+### 5.1 `x_stave_dt_data_mask_definition`
 
-```text
-Name:               IP Address Monitoring and Mask
-Table:              incident
-Fields:             short_description
-Mode:               Replace
-Regular Expression: \b(?:\d{1,3}\.){3}\d{1,3}\b
-Replace Text:       #Masked IP Address#
-Case sensitive:     true
-Order:              5
-Active:             false       (enable per environment)
-```
+Defines a real-time masking rule.
 
-When a user saves an incident with `short_description = "Down at 10.0.5.42"`, the field is rewritten to `Down at #Masked IP Address#` **before** the row is persisted, and an audit row is written to `x_stave_dt_data_mask_replaced` with `original_text = "Down at 10.0.5.42"` (because `include_original_text` defaults to `true`).
+| Field                     | Type            | Mand. | Hint / Notes                                                                                                |
+| ------------------------- | --------------- | :---: | ----------------------------------------------------------------------------------------------------------- |
+| `name`                    | string (100)    |   Y   | Name of this data mask definition.                                                                          |
+| `description`             | string (1000)   |       | The description of the data mask definition.                                                                |
+| `active`                  | boolean         |       | Default `true`. Toggles the rule on/off.                                                                    |
+| `mode`                    | string (40)     |   Y   | `Alert` (log only) or `Replace` (overwrite with `replace_text`). Default `Alert`.                          |
+| `table`                   | table_name (80) |   Y   | Table that will be monitored by this rule.                                                                  |
+| `fields`                  | string (1000)   |   Y   | Comma-separated list of fields on `table` to evaluate.                                                      |
+| `filter`                  | conditions (4000) |     | Condition-builder filter scoping which records trigger the rule.                                            |
+| `case_sensitive_filter`   | boolean         |       | Apply `filter` case-sensitively.                                                                            |
+| `regular_expression`      | string (100000) |   Y   | The regex pattern matched against the specified fields.                                                     |
+| `conditions_regex`        | string (2560)   |       | Additional regex applied to conditions.                                                                     |
+| `case_sensitive`          | boolean         |       | Default `true`. Apply `regular_expression` case-sensitively.                                                |
+| `dictionary_lookup`       | boolean         |       | If `true`, match against dictionary entries (table = `dictionary_table`) instead of regex.                  |
+| `dictionary_table`        | table_name (80) |       | The table that holds the dictionary entries for lookup.                                                     |
+| `replace_text`            | string (1000)   |       | Text inserted in place of the matched pattern when `mode = Replace`.                                        |
+| `first`                   | boolean         |       | Replace **only the first** match in the field.                                                              |
+| `last`                    | boolean         |       | Replace **only the last** match in the field.                                                               |
+| `exclude_characters`      | integer         |       | Number of characters to skip when masking (e.g. last 4 of an SSN).                                          |
+| `include_original_text`   | boolean         |       | Default `true`. If true, original value is stored on the `data_mask_replaced` audit row.                    |
+| `order`                   | integer         |       | Execution priority when multiple definitions monitor the same table (lower runs first).                     |
 
-### 5.2 Defining a mask rule (dictionary lookup)
+### 5.2 `x_stave_dt_data_mask_alert`
 
-1. Add words/phrases to `x_stave_dt_dictionary_entry` (one row per term).
-2. Create a `x_stave_dt_data_mask_definition` with:
-   - `dictionary_lookup = true`
-   - `dictionary_table = <your dictionary table>` (defaults to `x_stave_dt_dictionary_entry`)
-   - Leave `regular_expression` blank — the **Generate Regular Expression** action will build one from the dictionary on demand.
+Audit row written whenever a `mode=Alert` mask rule fires (and optionally when scramble rules with `alerts=true` fire).
 
-### 5.3 Running a scramble job
+| Field                       | Type                                      | Read-only | Notes                                                                  |
+| --------------------------- | ----------------------------------------- | :-------: | ---------------------------------------------------------------------- |
+| `number`                    | string (40)                               |           | Auto-generated.                                                        |
+| `user`                      | reference → `sys_user`                    |   Yes     | User whose save triggered the alert.                                   |
+| `table`                     | string (40)                               |   Yes     | Source table where the match occurred.                                 |
+| `field`                     | string (40)                               |   Yes     | Field on `table` where the match occurred.                             |
+| `id`                        | string (40)                               |   Yes     | `sys_id` of the source record.                                         |
+| `matched_text`              | string (1000)                             |   Yes     | The substring that matched the pattern.                                |
+| `data_mask_definition`      | reference → `x_stave_dt_data_mask_definition` | Yes   | Definition that fired (null if scramble-sourced).                      |
+| `data_scramble_definition`  | reference → `x_stave_dt_data_scramble_definition` | Yes | Definition that fired (null if mask-sourced).                          |
+| `state`                     | string (40)                               |           | `Pending Review` (default), `Masked`, or `Ignored`.                    |
 
-1. Create a `x_stave_dt_data_scramble_definition` with `table`, `fields`, `filter`, `regular_expresssion`, and a `mode` (10/20/30/40).
-2. From the form, click **Scramble Data** (requires the Scramble user role).
-3. The app previews the affected row count and asks for confirmation.
-4. On confirm, the scramble runs and writes one row per execution to `x_stave_dt_data_scramble_log` with `matching_records` / `modified_records`.
-5. If `alerts = true`, a `data_mask_alert` row is also produced for each scrambled value.
+### 5.3 `x_stave_dt_data_mask_replaced`
 
-### 5.4 Generating synthetic records
+Audit row written whenever a `mode=Replace` rule actually overwrites a value.
 
-1. Create a `x_stave_dt_data_generator` with `table`, `quantity`, `fields`, and (optionally) `set_values`.
-2. `set_values` is a JSON object mapping fields to fixed values, e.g.
+| Field                  | Type                                                | Notes                                                                            |
+| ---------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `number`               | string (40)                                         | Auto-generated.                                                                  |
+| `user`                 | reference → `sys_user`                              | User whose save triggered the replacement.                                       |
+| `data_mask_definition` | reference → `x_stave_dt_data_mask_definition`       | Read-only. Rule that fired.                                                      |
+| `table`                | table_name (80)                                     | Read-only. Source table.                                                         |
+| `field`                | string (40)                                         | Field that was overwritten.                                                      |
+| `id`                   | string (40)                                         | `sys_id` of the source record.                                                   |
+| `mode`                 | string (40)                                         | The `mode` of the firing definition (typically `Replace`).                       |
+| `original_text`        | string (100)                                        | Default `Not logged`. Populated only when the definition has `include_original_text = true`. |
 
-   ```json
-   {"category": "software", "priority": "3"}
-   ```
-3. Tune distribution: `reference_setting` and `choice_setting` each take `10` (Random) or `20` (Evenly Distributed).
-4. Click **Generate Data** (requires the Generator user role).
+### 5.4 `x_stave_dt_data_scramble_definition`
+
+Defines a manually-executed bulk scramble.
+
+| Field                  | Type                | Mand. | Notes                                                                                                          |
+| ---------------------- | ------------------- | :---: | -------------------------------------------------------------------------------------------------------------- |
+| `number`               | string (40)         |       | Auto-generated.                                                                                                |
+| `description`          | string (100)        |       | Description of this scramble definition.                                                                       |
+| `table`                | table_name (80)     |   Y   | Table whose data will be scrambled.                                                                            |
+| `fields`               | string (40000)      |       | Comma-separated list of fields on `table` to scramble.                                                         |
+| `filter`               | conditions (4000)   |       | Condition-builder filter.                                                                                      |
+| `regular_expresssion`  | string (100000)     |       | Regex matching the substring within each field to scramble.                                                    |
+| `case_sensitive`       | boolean             |       | Default `true`.                                                                                                |
+| `mode`                 | choice (40)         |       | Scramble mode — see codes below. Default `10` (Xs).                                                            |
+| `alerts`               | boolean             |       | If `true`, also write a `data_mask_alert` row for each scrambled value.                                        |
+
+**Scramble mode codes** (stored as the integer string in the `mode` field):
+
+| Code | Label       | Behavior                                                              |
+| ---- | ----------- | --------------------------------------------------------------------- |
+| `10` | Xs          | Replace every matched character with `x`.                             |
+| `20` | Shuffle     | Re-order the characters of the match randomly.                        |
+| `30` | Random User | Replace with user data drawn from `api.randomuser.me`.                |
+| `40` | Nowlpsum    | Replace with lorem ipsum text.                                        |
+
+### 5.5 `x_stave_dt_data_scramble_log`
+
+Execution log for scramble runs.
+
+| Field                 | Type                                                   | Notes                                                                                |
+| --------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `number`              | string (40)                                            | Auto-generated.                                                                      |
+| `scramble_definition` | reference → `x_stave_dt_data_scramble_definition`      | Definition that ran.                                                                 |
+| `description`         | string (100)                                           | Free-text description.                                                               |
+| `record_table`        | table_name (40)                                        | The table that was scrambled.                                                        |
+| `record`              | document_id (32)                                       | Reference to a specific scrambled record.                                            |
+| `start_date`          | glide_date_time                                        | Run start.                                                                           |
+| `end_date`            | glide_date_time                                        | Run end.                                                                             |
+| `matching_records`    | integer                                                | Records that matched the definition's filter + regex.                                |
+| `modified_records`    | integer                                                | Records actually written.                                                            |
+
+### 5.6 `x_stave_dt_data_generator`
+
+Synthetic data generation definition.
+
+| Field               | Type            | Mand. | Notes                                                                                       |
+| ------------------- | --------------- | :---: | ------------------------------------------------------------------------------------------- |
+| `number`            | string (40)     |       | Auto-generated.                                                                             |
+| `description`       | string (40)     |       | Description of this generator.                                                              |
+| `table`             | table_name (80) |   Y   | Table that will receive generated rows.                                                     |
+| `quantity`          | integer         |   Y   | How many records to create per execution.                                                   |
+| `fields`            | string (1000)   |   Y   | Comma-separated list of fields on `table` to populate.                                      |
+| `reference_setting` | choice (40)     |       | `10` Random (default) / `20` Evenly Distributed — controls how reference field values are picked. |
+| `choice_setting`    | choice (40)     |       | `10` Random (default) / `20` Evenly Distributed — same, for choice fields.                  |
+| `set_values`        | string (4000)   |       | JSON map of `field → fixed_value`. Each key must appear in `fields`.                        |
+
+### 5.7 `x_stave_dt_dictionary_entry`
+
+Custom word/phrase list used by mask definitions when `dictionary_lookup = true`.
+
+| Field            | Type             | Notes                                                       |
+| ---------------- | ---------------- | ----------------------------------------------------------- |
+| `name`           | string (40)      | Unique. The word/phrase to match.                           |
+| `sys_class_name` | sys_class_name (80) | Supports table extension.                                |
+
+An import template is provided for bulk-loading dictionary entries.
 
 ---
 
