@@ -179,6 +179,41 @@
       background: rgba(0, 33, 49, 0.55);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
     }
+
+    /* Collapsible NESTED sidebar groups (e.g. Tools / Supply Core / Integrations under
+       Products). Docsify's own `collapsibleSidebarGroups` config only wires up
+       top-level groups (its render code requires the group's parent <ul> to be the
+       sidebar root itself), so nested category groups need this custom styling —
+       paired with the plugin script below the $docsify config that adds the actual
+       click/keyboard toggle behavior and the is-collapsed/aria-expanded state. */
+    .collapsible-group-title {
+      position: relative;
+      cursor: pointer;
+      padding-right: 1.1em;
+      user-select: none;
+    }
+    .collapsible-group-title:focus-visible {
+      outline: 2px solid var(--stave-green);
+      outline-offset: 2px;
+    }
+    .collapsible-group-title::after {
+      content: '';
+      position: absolute;
+      top: 0.5em;
+      right: 0.15em;
+      width: 0.45em;
+      height: 0.45em;
+      border-right: 2px solid var(--stave-text);
+      border-bottom: 2px solid var(--stave-text);
+      transform: rotate(45deg);
+      transition: transform 0.15s ease-in-out;
+    }
+    .collapsible-group.is-collapsed > .collapsible-group-title::after {
+      transform: rotate(-45deg);
+    }
+    .collapsible-group.is-collapsed > ul {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -208,6 +243,118 @@
       auto2top: true,
       search: { placeholder: 'Search…', noData: 'No results.', depth: 3 }
     }
+  </script>
+  <script>
+    // Makes NESTED sidebar groups (e.g. Tools / Supply Core / Integrations under
+    // Products) collapsible by clicking their title.
+    //
+    // Docsify DOES have a built-in `collapsibleSidebarGroups` option, but two
+    // problems rule it out: (1) it only wires up TOP-level groups — its render
+    // code requires a group's parent <ul> to be the sidebar root itself, so it
+    // would only ever affect "Products", never the categories nested inside it —
+    // and (2) that feature (and the `.group`/`.group-title` markup it depends on)
+    // doesn't exist at all in docsify@4.13.1, the version this site actually
+    // loads from the CDN; it only exists on docsify's unreleased `develop` branch.
+    // Verified directly against the installed package, not assumed. So this
+    // plugin does its own group detection from scratch instead of relying on
+    // Docsify to have tagged anything.
+    //
+    // A "group" here is any <li> with a direct <ul> child and no direct <a>
+    // child (a label, not a page link). Its title is whatever comes before that
+    // <ul> — normally a bare <strong> for a tight nested list item (no blank
+    // lines around it in the source Markdown) or a <p><strong>...</strong></p>
+    // for a loose top-level one; if there's no existing <p> wrapper this creates
+    // one (so there's always a single element to attach the click handler and
+    // aria-expanded to), same idea as the block newer Docsify itself doesn't
+    // have but would need if it did.
+    //
+    // Runs on `doneEach` because Docsify replaces the sidebar's entire innerHTML
+    // on every navigation; open/closed state is kept in a plain JS object (keyed
+    // by the group's title text) so choices persist while navigating, the same
+    // behavior Docsify's own native feature provides for top-level groups.
+    (function () {
+      var openState = {};
+
+      function findGroups(root) {
+        var result = [];
+        root.querySelectorAll('li').forEach(function (li) {
+          var sublist = li.querySelector(':scope > ul');
+          var directLink = li.querySelector(':scope > a');
+          if (sublist && !directLink) result.push(li);
+        });
+        return result;
+      }
+
+      function getOrMakeTitle(li, sublist) {
+        var existing = li.querySelector(':scope > p');
+        if (existing) return existing;
+
+        var titleNodes = [];
+        for (var node = li.firstChild; node && node !== sublist; node = node.nextSibling) {
+          titleNodes.push(node);
+        }
+        if (!titleNodes.some(function (n) { return (n.textContent || '').trim(); })) {
+          return null; // nothing to click — shouldn't normally happen
+        }
+
+        var p = document.createElement('p');
+        titleNodes.forEach(function (n) { p.appendChild(n); });
+        li.insertBefore(p, sublist);
+        return p;
+      }
+
+      function initNestedSidebarGroups() {
+        var sidebarNav = document.querySelector('.sidebar-nav');
+        if (!sidebarNav) return;
+
+        var groups = findGroups(sidebarNav);
+        groups.forEach(function (li) {
+          // .sidebar-nav is a wrapper <div>; the actual list starts one level in
+          // (<div class="sidebar-nav"><ul>...). So "top-level" means this group's
+          // own <ul> parent sits directly inside that wrapper, not that li itself
+          // is a direct child of sidebarNav (it never is).
+          if (li.parentElement && li.parentElement.parentElement === sidebarNav) return;
+          if (li.dataset.collapsibleBound) return;
+
+          var sublist = li.querySelector(':scope > ul');
+          var title = getOrMakeTitle(li, sublist);
+          if (!title || !sublist) return;
+
+          li.dataset.collapsibleBound = 'true';
+          li.classList.add('collapsible-group');
+          title.classList.add('collapsible-group-title');
+          title.setAttribute('role', 'button');
+          title.setAttribute('tabindex', '0');
+
+          var key = title.textContent.trim();
+          var isOpen = Object.prototype.hasOwnProperty.call(openState, key) ? openState[key] : true;
+
+          function applyState() {
+            li.classList.toggle('is-collapsed', !isOpen);
+            title.setAttribute('aria-expanded', String(isOpen));
+          }
+          applyState();
+
+          function toggle() {
+            isOpen = !isOpen;
+            openState[key] = isOpen;
+            applyState();
+          }
+
+          title.addEventListener('click', toggle);
+          title.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggle();
+            }
+          });
+        });
+      }
+
+      window.$docsify.plugins = (window.$docsify.plugins || []).concat(function (hook) {
+        hook.doneEach(initNestedSidebarGroups);
+      });
+    })();
   </script>
   <!-- Docsify v4 -->
   <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>

@@ -4,9 +4,14 @@
 - [Home](https://docs-dev.stavecorp.com/ ':target=_self')
 
 - **Internal Docs**
-  - [Stave Data Tools](data-tools/)
-  - [Stave QR Code Generator](qr-code/)
-  - [Stave Maps](stave-maps/)
+  - **Tools**
+    - [Stave Data Tools](data-tools/)
+    - [Stave QR Code Generator](qr-code/)
+    - [Stave Maps](stave-maps/)
+  - **Supply Core**
+    - _Coming soon_
+  - **Integrations**
+    - _Coming soon_
 
 - [Logout](javascript:void(0) 'Design placeholder — not yet functional :target=_self :class=sidebar-logout-link')
 
