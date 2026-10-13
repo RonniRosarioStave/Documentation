@@ -11,4 +11,4 @@
   - **Supply Core**
     - _Coming soon_
   - **Integrations**
-    - _Coming soon_
+    - [Stave WWEX Integration](client/wwex/)

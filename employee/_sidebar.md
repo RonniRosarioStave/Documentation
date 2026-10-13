@@ -11,7 +11,7 @@
   - **Supply Core**
     - _Coming soon_
   - **Integrations**
-    - _Coming soon_
+    - [Stave WWEX Integration](wwex/)
 
 - [Logout](javascript:void(0) 'Design placeholder — not yet functional :target=_self :class=sidebar-logout-link')
 
