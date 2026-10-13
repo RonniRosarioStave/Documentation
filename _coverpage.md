@@ -9,6 +9,7 @@
 - Stave Data Tools
 - Stave QR Code Generator
 - Stave Maps
+- Stave WWEX Integration
 
 <!-- Employee Access is an HTML anchor with target so docsify's SPA router does NOT
      intercept it: it must be a top-level page load of /employee/ so nginx auth_request
